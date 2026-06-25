@@ -109,11 +109,6 @@ SITE_ID = 1
 SOCIALACCOUNT_PROVIDERS = {
     "github": {
         "SCOPE": ["user:email", "read:user"],
-        "APP": {
-            "client_id": config("GITHUB_CLIENT_ID", default=""),
-            "secret": config("GITHUB_CLIENT_SECRET", default=""),
-            "key": "",
-        },
     }
 }
 
