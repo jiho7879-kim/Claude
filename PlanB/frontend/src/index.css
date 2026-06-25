@@ -1,0 +1,184 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  /* Backgrounds */
+  --bg-base:     #0a0d14;
+  --bg-surface:  #111827;
+  --bg-elevated: #1a2232;
+  --bg-hover:    #1e2d42;
+  --bg-overlay:  rgba(0,0,0,0.65);
+
+  /* Borders */
+  --border:       #1f2937;
+  --border-focus: #6366f1;
+
+  /* Accent — Indigo */
+  --accent:       #6366f1;
+  --accent-hover: #4f46e5;
+  --accent-muted: rgba(99,102,241,0.15);
+
+  /* Text */
+  --text-primary:   #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted:     #64748b;
+
+  /* Semantic */
+  --success:  #10b981;
+  --danger:   #ef4444;
+  --warning:  #f59e0b;
+  --info:     #3b82f6;
+
+  /* Priority */
+  --priority-urgent: #ef4444;
+  --priority-high:   #f59e0b;
+  --priority-medium: #6366f1;
+  --priority-low:    #64748b;
+
+  /* Status */
+  --status-todo:        #64748b;
+  --status-in-progress: #6366f1;
+  --status-done:        #10b981;
+  --status-cancelled:   #374151;
+
+  /* Spacing */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px;
+  --sp-4: 16px; --sp-6: 24px; --sp-8: 32px;
+
+  /* Radius */
+  --r-sm: 4px; --r-md: 8px; --r-lg: 12px; --r-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm:  0 1px 3px rgba(0,0,0,0.4);
+  --shadow-md:  0 4px 16px rgba(0,0,0,0.5);
+  --shadow-lg:  0 8px 32px rgba(0,0,0,0.6);
+
+  /* Transitions */
+  --ease:     cubic-bezier(0.16,1,0.3,1);
+  --duration: 180ms;
+
+  /* Sidebar */
+  --sidebar-w: 240px;
+
+  /* Chart palette */
+  --chart-1: #6366f1;
+  --chart-2: #10b981;
+  --chart-3: #f59e0b;
+  --chart-4: #3b82f6;
+  --chart-5: #ec4899;
+
+  /* RAG traffic-light */
+  --rag-green: #10b981;
+  --rag-amber: #f59e0b;
+  --rag-red:   #ef4444;
+
+  /* GitHub-style heatmap */
+  --heatmap-0: #1a2232;
+  --heatmap-1: rgba(99,102,241,0.25);
+  --heatmap-2: rgba(99,102,241,0.50);
+  --heatmap-3: rgba(99,102,241,0.75);
+  --heatmap-4: #6366f1;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  background: var(--bg-base);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root { height: 100%; }
+
+* { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+h1,h2,h3,h4 { margin: 0; font-weight: 600; color: var(--text-primary); }
+p { margin: 0; }
+a { color: var(--accent); text-decoration: none; }
+button { cursor: pointer; }
+input, textarea, select {
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  outline: none;
+  transition: border-color var(--duration) var(--ease);
+}
+input:focus, textarea:focus, select:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--accent-muted);
+}
+
+/* App Layout */
+.app-layout {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  z-index: 20;
+}
+
+.app-main {
+  margin-left: var(--sidebar-w);
+  flex: 1;
+  overflow-y: auto;
+  height: 100vh;
+}
+
+.app-content {
+  padding: var(--sp-8) var(--sp-6);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Skeleton shimmer */
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-surface) 25%, var(--bg-elevated) 50%, var(--bg-surface) 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: var(--r-md);
+}
+
+/* Fade in */
+@keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+.fade-in { animation: fadeIn 200ms var(--ease) both; }
+
+/* Slide in from right */
+@keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+.slide-in-right { animation: slideInRight 220ms var(--ease) both; }
+
+/* Kanban card drop flash */
+@keyframes cardDrop { 0%{background:var(--accent-muted);border-color:var(--accent)} 100%{background:var(--bg-elevated);border-color:var(--border)} }
+.card-drop { animation: cardDrop 600ms var(--ease) both; }
+
+/* Task list stagger */
+@keyframes taskRowIn { from{opacity:0;transform:translateX(-6px)} to{opacity:1;transform:none} }
+.task-row-stagger { animation: taskRowIn 200ms var(--ease) both; }
