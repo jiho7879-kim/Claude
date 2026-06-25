@@ -5,7 +5,9 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 
 def debug_check(request):
-    result = {}
+    import traceback as tb
+    import django
+    result = {"django_version": django.__version__}
     try:
         from django.contrib.sites.models import Site
         s = Site.objects.get(id=1)
@@ -20,10 +22,17 @@ def debug_check(request):
     except Exception as e:
         result["provider_error"] = str(e)
     try:
-        from allauth.socialaccount.providers.github.provider import GitHubProvider
-        result["allauth_github"] = "ok"
+        from allauth.socialaccount.models import SocialApp
+        apps = list(SocialApp.objects.filter(provider="github").values("id", "client_id"))
+        result["db_social_apps"] = apps
     except Exception as e:
-        result["allauth_error"] = str(e)
+        result["db_social_apps_error"] = str(e)
+    try:
+        from allauth.socialaccount.providers.github.views import oauth2_login
+        return oauth2_login(request)
+    except Exception as e:
+        result["login_error"] = str(e)
+        result["login_traceback"] = tb.format_exc()
     return JsonResponse(result)
 
 from apps.ai.urls import project_urlpatterns as ai_project_urlpatterns
