@@ -66,10 +66,10 @@ WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": config("DB_NAME"),
-        "USER": config("DB_USER"),
-        "PASSWORD": config("DB_PASSWORD"),
-        "HOST": config("DB_HOST"),
+        "NAME": config("DB_NAME", default=""),
+        "USER": config("DB_USER", default=""),
+        "PASSWORD": config("DB_PASSWORD", default=""),
+        "HOST": config("DB_HOST", default=""),
         "PORT": config("DB_PORT", default="5432"),
     }
 }
@@ -110,8 +110,8 @@ SOCIALACCOUNT_PROVIDERS = {
     "github": {
         "SCOPE": ["user:email", "read:user"],
         "APP": {
-            "client_id": config("GITHUB_CLIENT_ID"),
-            "secret": config("GITHUB_CLIENT_SECRET"),
+            "client_id": config("GITHUB_CLIENT_ID", default=""),
+            "secret": config("GITHUB_CLIENT_SECRET", default=""),
             "key": "",
         },
     }
