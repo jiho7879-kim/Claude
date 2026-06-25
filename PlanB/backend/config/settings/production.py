@@ -35,7 +35,7 @@ FRONTEND_URL = config("FRONTEND_URL", default="")
 # ── Static files (WhiteNoise) ─────────────────────────────────────────────────
 STORAGES = {
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
     },
 }
 
