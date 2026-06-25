@@ -8,7 +8,8 @@ SECRET_KEY = config("SECRET_KEY")
 
 ALLOWED_HOSTS = config(
     "ALLOWED_HOSTS",
-    cast=lambda v: [s.strip() for s in v.split(",")],
+    default="",
+    cast=lambda v: [s.strip() for s in v.split(",") if s.strip()],
 )
 
 # ── Database (Neon / Render DATABASE_URL) ─────────────────────────────────────
@@ -23,12 +24,13 @@ DATABASES = {
 # ── CORS ──────────────────────────────────────────────────────────────────────
 CORS_ALLOWED_ORIGINS = config(
     "CORS_ALLOWED_ORIGINS",
-    cast=lambda v: [s.strip() for s in v.split(",")],
+    default="",
+    cast=lambda v: [s.strip() for s in v.split(",") if s.strip()],
 )
 CORS_ALLOW_CREDENTIALS = True
 
 # ── Frontend URL (OAuth redirect 대상) ────────────────────────────────────────
-FRONTEND_URL = config("FRONTEND_URL")
+FRONTEND_URL = config("FRONTEND_URL", default="")
 
 # ── Static files (WhiteNoise) ─────────────────────────────────────────────────
 STORAGES = {
