@@ -25,7 +25,7 @@ DATABASES = {
 CORS_ALLOWED_ORIGINS = config(
     "CORS_ALLOWED_ORIGINS",
     default="",
-    cast=lambda v: [s.strip() for s in v.split(",") if s.strip()],
+    cast=lambda v: [s.strip().rstrip("/") for s in v.split(",") if s.strip()],
 )
 CORS_ALLOW_CREDENTIALS = True
 
