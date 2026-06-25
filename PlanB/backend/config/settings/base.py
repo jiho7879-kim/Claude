@@ -123,3 +123,4 @@ REST_FRAMEWORK = {
 }
 
 ACCOUNT_ADAPTER = "apps.accounts.adapter.AccountAdapter"
+SOCIALACCOUNT_ADAPTER = "apps.accounts.adapter.SocialAccountAdapter"
