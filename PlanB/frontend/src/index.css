@@ -316,6 +316,10 @@ input:focus, textarea:focus, select:focus {
     overflow: visible !important;
     height: auto !important;
   }
+  /* 감사 3칸 → 세로 1단 */
+  .gratitude-row { flex-direction: column !important; }
+  .gratitude-row > div { flex: none !important; }
+
   /* 일기 textarea 고정 높이 해제 + 크게 */
   .planner-page textarea {
     min-height: 200px !important;

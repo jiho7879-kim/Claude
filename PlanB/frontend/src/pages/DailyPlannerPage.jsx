@@ -624,7 +624,7 @@ export default function DailyPlannerPage() {
             {/* 감사 일기 */}
             <div style={{ padding: '12px 24px', borderTop: '1px solid var(--border)', background: 'var(--bg-elevated)', flexShrink: 0 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>🙏 오늘 감사한 것</div>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div className="gratitude-row" style={{ display: 'flex', gap: 8 }}>
                 {[0, 1, 2].map(i => (
                   <div key={i} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px', background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', transition: 'border-color .2s' }}
                     onFocusCapture={e => e.currentTarget.style.borderColor = 'var(--accent)'}
