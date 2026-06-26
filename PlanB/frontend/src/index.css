@@ -223,6 +223,18 @@ input:focus, textarea:focus, select:focus {
 .mobile-bottom-nav a.active { color: var(--accent); }
 .mobile-bottom-nav .nav-icon { font-size: 20px; line-height: 1; }
 
+/* FullCalendar mobile overrides */
+@media (max-width: 768px) {
+  .fc .fc-col-header-cell-cushion,
+  .fc .fc-daygrid-day-number { font-size: 11px !important; padding: 2px 3px !important; }
+  .fc .fc-daygrid-event { font-size: 10px !important; margin: 1px !important; }
+  .fc .fc-toolbar-title { font-size: 14px !important; }
+  .fc .fc-button { font-size: 11px !important; padding: 3px 7px !important; }
+  .fc .fc-toolbar { flex-wrap: wrap; gap: 4px; }
+  .fc .fc-daygrid-day-frame { min-height: 48px !important; }
+  .fc .fc-daygrid-day-events { min-height: 20px !important; }
+}
+
 /* Mobile breakpoint */
 @media (max-width: 768px) {
   body, #root { overflow-x: hidden; }
@@ -261,6 +273,25 @@ input:focus, textarea:focus, select:focus {
 
   /* 툴바 버튼 그룹 줄바꿈 */
   .toolbar-row { flex-wrap: wrap; gap: 6px; }
+
+  /* 대시보드 3단 그리드 → 1단 */
+  .dashboard-grid { grid-template-columns: 1fr !important; }
+
+  /* 플래너 좌우 레이아웃 → 상하 */
+  .planner-layout { flex-direction: column !important; overflow: auto !important; }
+  .planner-left-panel {
+    width: 100% !important;
+    max-height: 280px;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .planner-right-panel { flex: 1; min-height: 60vh; }
+
+  /* 캘린더: 미니 캘린더 숨김, 메인 캘린더 전체 너비 */
+  .calendar-main { flex-direction: column; }
+  .calendar-mini { display: none !important; }
+  .calendar-fc-wrap { padding: 8px 10px !important; }
 }
 
 /* Skeleton shimmer */

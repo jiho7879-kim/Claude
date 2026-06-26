@@ -47,7 +47,7 @@ function MiniCalendar({ events, currentDate, onDateSelect }) {
   for (let d = 1; d <= daysInMo; d++) cells.push(d)
 
   return (
-    <div style={{ width:220, flexShrink:0, borderRight:'1px solid var(--border)', padding:'16px 10px', display:'flex', flexDirection:'column', gap:10 }}>
+    <div className="calendar-mini" style={{ width:220, flexShrink:0, borderRight:'1px solid var(--border)', padding:'16px 10px', display:'flex', flexDirection:'column', gap:10 }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <button onClick={() => setView(new Date(yr, mo-1, 1))} style={iconBtn}>‹</button>
         <span style={{ fontSize:12, fontWeight:700, color:'var(--text-primary)' }}>{yr}년 {MONTHS[mo]}</span>
@@ -492,10 +492,10 @@ export default function CalendarPage() {
         </div>
       )}
 
-      <div style={{ display: calMode === 'timeline' ? 'none' : 'flex', flex:1, overflow:'hidden', minHeight:0 }}>
+      <div className="calendar-main" style={{ display: calMode === 'timeline' ? 'none' : 'flex', flex:1, overflow:'hidden', minHeight:0 }}>
         <MiniCalendar events={events} currentDate={currentDate} onDateSelect={handleDateSelect} />
 
-        <div style={{ flex:1, padding:'16px 20px', overflowY:'auto', '--fc-border-color':'var(--border)', '--fc-today-bg-color':'var(--accent-muted)', '--fc-page-bg-color':'transparent' }}>
+        <div className="calendar-fc-wrap" style={{ flex:1, padding:'16px 20px', overflowY:'auto', '--fc-border-color':'var(--border)', '--fc-today-bg-color':'var(--accent-muted)', '--fc-page-bg-color':'transparent' }}>
           <style>{`
             .fc{color:var(--text-primary);font-family:'Inter',sans-serif}
             .fc .fc-toolbar-title{font-size:15px;font-weight:700}

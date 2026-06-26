@@ -415,10 +415,10 @@ export default function DailyPlannerPage() {
       {loading ? (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 14, position: 'relative', zIndex: 1 }}>로딩 중...</div>
       ) : (
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative', zIndex: 1 }}>
+        <div className="planner-layout" style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative', zIndex: 1 }}>
 
           {/* ══ 왼쪽: 계획 + 습관 (50:50) ══ */}
-          <div style={{ width: 320, flexShrink: 0, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div className="planner-left-panel" style={{ width: 320, flexShrink: 0, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
             {/* ── 상단 절반: 오늘의 계획 ── */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
@@ -550,7 +550,7 @@ export default function DailyPlannerPage() {
           </div>
 
           {/* ══ 오른쪽: 기분·감정 + 일기 영역 ══ */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div className="planner-right-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
             {/* 기분 + 복합 감정 태그 + 에너지 (한 행) */}
             <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)', flexShrink: 0, display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>

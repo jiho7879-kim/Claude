@@ -438,7 +438,7 @@ function DashboardSkeleton() {
           {[0,1,2].map(i => <Skeleton key={i} height={46} width={80} />)}
         </div>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr 240px', gap: 16, marginBottom: 16 }}>
+      <div className="dashboard-grid" style={{ display: 'grid', gridTemplateColumns: '300px 1fr 240px', gap: 16, marginBottom: 16 }}>
         <Skeleton height={300} style={{ borderRadius: 12 }} />
         <Skeleton height={300} style={{ borderRadius: 12 }} />
         <Skeleton height={300} style={{ borderRadius: 12 }} />
@@ -505,7 +505,7 @@ export default function DashboardPage() {
     <div className="app-content">
       <HeroCard myTasks={myTasks} events={events} user={user} slug={slug} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr 240px', gap: 16, marginBottom: 16 }}>
+      <div className="dashboard-grid" style={{ display: 'grid', gridTemplateColumns: '300px 1fr 240px', gap: 16, marginBottom: 16 }}>
         <div>
           <MyTasksPanel tasks={myTasks} slug={slug} onToggleDone={handleToggleDone} />
           <TodayEventsPanel events={events} slug={slug} />
