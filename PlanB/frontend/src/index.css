@@ -166,9 +166,10 @@ input:focus, textarea:focus, select:focus {
   background: rgba(0, 0, 0, 0.6);
   z-index: 199;
   opacity: 0;
+  pointer-events: none;
   transition: opacity 0.25s var(--ease);
 }
-.mobile-overlay.open { opacity: 1; }
+.mobile-overlay.open { opacity: 1; pointer-events: auto; }
 
 /* Mobile top bar */
 .mobile-top-bar {
@@ -224,6 +225,8 @@ input:focus, textarea:focus, select:focus {
 
 /* Mobile breakpoint */
 @media (max-width: 768px) {
+  body, #root { overflow-x: hidden; }
+
   .app-sidebar {
     transform: translateX(-100%);
     transition: transform 0.25s var(--ease);
@@ -231,15 +234,33 @@ input:focus, textarea:focus, select:focus {
     z-index: 300;
   }
   .app-sidebar.sidebar-mobile-open { transform: translateX(0); }
+
   .app-main {
     margin-left: 0 !important;
     padding-bottom: 60px;
+    overflow-x: hidden;
   }
   .app-content { padding: var(--sp-4); }
+
   .mobile-overlay { display: block; }
   .mobile-top-bar { display: flex; }
   .mobile-bottom-nav { display: flex; }
   .desktop-top-bar { display: none; }
+
+  /* 모달/패널 반응형 */
+  [style*="width: 420"], [style*="width:420"],
+  [style*="width: 480"], [style*="width:480"] {
+    width: calc(100vw - 32px) !important;
+    max-width: 420px;
+  }
+
+  /* 우측 슬라이드 패널 (캘린더, TaskDrawer) */
+  [style*="width: 380"], [style*="width:380"] {
+    width: 100vw !important;
+  }
+
+  /* 툴바 버튼 그룹 줄바꿈 */
+  .toolbar-row { flex-wrap: wrap; gap: 6px; }
 }
 
 /* Skeleton shimmer */

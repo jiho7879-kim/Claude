@@ -295,7 +295,7 @@ function EventFormPanel({ form, setForm, onSubmit, onClose, isEditing }) {
   return (
     <>
       <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', zIndex:200 }} />
-      <div style={{ position:'fixed', top:0, right:0, bottom:0, width:380, zIndex:201, background:'var(--bg-surface)', borderLeft:'1px solid var(--border)', boxShadow:'var(--shadow-lg)', padding:'24px', display:'flex', flexDirection:'column', gap:14, animation:'slideInRight 0.2s ease' }}>
+      <div style={{ position:'fixed', top:0, right:0, bottom:0, width:'min(380px, 100vw)', zIndex:201, background:'var(--bg-surface)', borderLeft:'1px solid var(--border)', boxShadow:'var(--shadow-lg)', padding:'24px', display:'flex', flexDirection:'column', gap:14, animation:'slideInRight 0.2s ease' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <h2 style={{ fontSize:16, fontWeight:700, margin:0 }}>{isEditing?'이벤트 편집':'새 이벤트'}</h2>
           <button onClick={onClose} style={{ background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', fontSize:20 }}>×</button>

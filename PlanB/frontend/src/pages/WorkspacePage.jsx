@@ -108,7 +108,7 @@ function CreateModal({ onClose, onSave }) {
   const sel = { width:'100%', padding:'8px 12px', borderRadius:'var(--r-md)', fontSize:'13px', background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'var(--text-primary)', cursor:'pointer' }
   return (
     <div onClick={onClose} style={{ position:'fixed', inset:0, background:'var(--bg-overlay)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center' }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:'var(--bg-surface)', border:'1px solid var(--border)', borderRadius:'var(--r-lg)', padding:'24px', width:420, boxShadow:'var(--shadow-lg)' }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:'var(--bg-surface)', border:'1px solid var(--border)', borderRadius:'var(--r-lg)', padding:'24px', width:'min(420px, calc(100vw - 32px))', boxSizing:'border-box', boxShadow:'var(--shadow-lg)' }}>
         <h2 style={{ fontSize:'16px', fontWeight:600, marginBottom:20 }}>새 프로젝트</h2>
         <form onSubmit={e=>{e.preventDefault();onSave(form)}}>
           {[['name','이름','Project Alpha'],['description','설명 (선택)','이 프로젝트에 대한 설명']].map(([key,label,ph])=>(

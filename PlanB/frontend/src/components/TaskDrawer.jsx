@@ -346,7 +346,7 @@ export default function TaskDrawer({ task, onClose, onUpdate, onDelete, members 
         style={{ position: 'fixed', inset: 0, background: 'var(--bg-overlay)', zIndex: 100 }}
       />
       <div className="slide-in-right" style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0, width: 480,
+        position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(480px, 100vw)',
         background: 'var(--bg-surface)', borderLeft: '1px solid var(--border)',
         zIndex: 101, display: 'flex', flexDirection: 'column', overflow: 'hidden',
       }}>
