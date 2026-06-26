@@ -89,10 +89,11 @@ export default function AIChatPage() {
         next[next.length - 1] = { role: 'assistant', content: data.reply, actions: data.actions || [] }
         return next
       })
-    } catch {
+    } catch (err) {
+      const detail = err?.response?.data?.reply || err?.response?.data?.detail || err?.message || '알 수 없는 오류'
       setMessages(prev => {
         const next = [...prev]
-        next[next.length - 1] = { role: 'assistant', content: '오류가 발생했습니다. GEMINI_API_KEY가 설정되어 있는지 확인해주세요.' }
+        next[next.length - 1] = { role: 'assistant', content: `오류: ${detail}` }
         return next
       })
     } finally {

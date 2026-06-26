@@ -20,8 +20,11 @@ def _try_gemini(prompt: str, system: str) -> str:
     api_key = os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
         raise ValueError("GEMINI_API_KEY 없음")
-    from google import genai
-    from google.genai import types
+    try:
+        from google import genai
+        from google.genai import types
+    except ImportError:
+        raise RuntimeError("google-genai 패키지 미설치")
     client = genai.Client(api_key=api_key)
     last_exc = None
     for model_name in _GEMINI_MODELS:
@@ -43,7 +46,10 @@ def _try_groq(prompt: str, system: str) -> str:
     api_key = os.environ.get("GROQ_API_KEY", "")
     if not api_key:
         raise ValueError("GROQ_API_KEY 없음")
-    from groq import Groq
+    try:
+        from groq import Groq
+    except ImportError:
+        raise RuntimeError("groq 패키지 미설치")
     client = Groq(api_key=api_key)
     last_exc = None
     for model_name in _GROQ_MODELS:
