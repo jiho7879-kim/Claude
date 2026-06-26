@@ -12,17 +12,17 @@ from .serializers import RuleLogSerializer, RuleSerializer
 
 
 class RuleListCreateView(APIView):
-    def _get_project(self, slug: str, project_id: str, user):
-        workspace = get_object_or_404(Workspace, slug=slug, members__user=user)
+    def _get_project(self, workspace_slug: str, project_id: str, user):
+        workspace = get_object_or_404(Workspace, workspace_slug=workspace_slug, members__user=user)
         return get_object_or_404(Project, id=project_id, workspace=workspace)
 
-    def get(self, request: Request, slug: str, project_id: str) -> Response:
-        project = self._get_project(slug, project_id, request.user)
+    def get(self, request: Request, workspace_slug: str, project_id: str) -> Response:
+        project = self._get_project(workspace_slug, project_id, request.user)
         rules = project.rules.all()
         return Response(RuleSerializer(rules, many=True).data)
 
-    def post(self, request: Request, slug: str, project_id: str) -> Response:
-        project = self._get_project(slug, project_id, request.user)
+    def post(self, request: Request, workspace_slug: str, project_id: str) -> Response:
+        project = self._get_project(workspace_slug, project_id, request.user)
         serializer = RuleSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         rule = serializer.save(project=project)
@@ -30,27 +30,27 @@ class RuleListCreateView(APIView):
 
 
 class RuleDetailView(APIView):
-    def _get_rule(self, slug: str, project_id: str, rule_id: str, user):
-        workspace = get_object_or_404(Workspace, slug=slug, members__user=user)
+    def _get_rule(self, workspace_slug: str, project_id: str, rule_id: str, user):
+        workspace = get_object_or_404(Workspace, workspace_slug=workspace_slug, members__user=user)
         project = get_object_or_404(Project, id=project_id, workspace=workspace)
         return get_object_or_404(Rule, id=rule_id, project=project)
 
-    def patch(self, request: Request, slug: str, project_id: str, rule_id: str) -> Response:
-        rule = self._get_rule(slug, project_id, rule_id, request.user)
+    def patch(self, request: Request, workspace_slug: str, project_id: str, rule_id: str) -> Response:
+        rule = self._get_rule(workspace_slug, project_id, rule_id, request.user)
         serializer = RuleSerializer(rule, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(RuleSerializer(rule).data)
 
-    def delete(self, request: Request, slug: str, project_id: str, rule_id: str) -> Response:
-        rule = self._get_rule(slug, project_id, rule_id, request.user)
+    def delete(self, request: Request, workspace_slug: str, project_id: str, rule_id: str) -> Response:
+        rule = self._get_rule(workspace_slug, project_id, rule_id, request.user)
         rule.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class RuleLogListView(APIView):
-    def get(self, request: Request, slug: str, project_id: str, rule_id: str) -> Response:
-        workspace = get_object_or_404(Workspace, slug=slug, members__user=request.user)
+    def get(self, request: Request, workspace_slug: str, project_id: str, rule_id: str) -> Response:
+        workspace = get_object_or_404(Workspace, workspace_slug=workspace_slug, members__user=request.user)
         project = get_object_or_404(Project, id=project_id, workspace=workspace)
         rule = get_object_or_404(Rule, id=rule_id, project=project)
         logs = rule.logs.select_related("task")[:50]
