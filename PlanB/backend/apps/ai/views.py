@@ -12,13 +12,16 @@ from apps.tasks.models import Task
 from apps.workspaces.models import Workspace
 
 
-_MODELS = ["gemini-1.5-flash-8b", "gemini-1.5-flash", "gemini-2.0-flash-lite"]
+_MODELS = ["gemini-1.5-flash-8b", "gemini-1.5-flash", "gemini-2.0-flash-lite", "gemini-2.0-flash"]
 
 
 def _gemini(prompt: str, system: str = "") -> str:
+    import logging
+    logger = logging.getLogger(__name__)
+
     api_key = os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
-        raise ValueError("GEMINI_API_KEY 환경변수가 설정되지 않았습니다. Render 환경변수를 확인해주세요.")
+        raise ValueError("GEMINI_API_KEY 환경변수가 설정되지 않았습니다.")
     import google.generativeai as genai
     genai.configure(api_key=api_key)
     last_exc = None
@@ -28,10 +31,14 @@ def _gemini(prompt: str, system: str = "") -> str:
                 model_name=model_name,
                 system_instruction=system or "당신은 친절한 프로젝트 관리 어시스턴트입니다. 항상 한국어로 답변하세요.",
             )
-            return model.generate_content(prompt).text
+            result = model.generate_content(prompt).text
+            logger.info(f"[Gemini] success with {model_name}")
+            return result
         except Exception as e:
+            err_str = str(e)
+            logger.warning(f"[Gemini] {model_name} failed: {err_str[:200]}")
             last_exc = e
-            if "429" not in str(e) and "404" not in str(e):
+            if "429" not in err_str and "404" not in err_str:
                 raise
     raise last_exc
 
