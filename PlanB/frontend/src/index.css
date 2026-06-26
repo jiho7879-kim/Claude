@@ -221,7 +221,7 @@ input:focus, textarea:focus, select:focus {
   -webkit-tap-highlight-color: transparent;
 }
 .mobile-bottom-nav a.active { color: var(--accent); }
-.mobile-bottom-nav .nav-icon { font-size: 20px; line-height: 1; }
+.mobile-bottom-nav .nav-icon { font-size: 18px; line-height: 1; }
 
 /* FullCalendar mobile overrides */
 @media (max-width: 768px) {
@@ -319,6 +319,9 @@ input:focus, textarea:focus, select:focus {
   /* 감사 3칸 → 세로 1단 */
   .gratitude-row { flex-direction: column !important; }
   .gratitude-row > div { flex: none !important; }
+
+  /* 노트 모바일: 사이드 패널 숨기고 에디터 전체 */
+  .notes-sidebar { display: none !important; }
 
   /* 일기 textarea 고정 높이 해제 + 크게 */
   .planner-page textarea {

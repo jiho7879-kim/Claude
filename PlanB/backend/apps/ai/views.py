@@ -7,6 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.calendars.models import CalendarEvent
+from apps.notes.models import Note
 from apps.planner.models import DailyEntry, TimeBlock
 from apps.projects.models import Project
 from apps.tasks.models import Task
@@ -224,24 +225,39 @@ def _build_workspace_context(workspace, user):
         time_str = f" {b['start_time']}~{b['end_time']}" if b["start_time"] else ""
         lines.append(f"  - ID:{b['id']} {done} {b['title']}{time_str} [{b['category']}]")
 
+    lines.append("")
+    notes = list(
+        Note.objects.filter(workspace=workspace, user=user)
+        .order_by("-updated_at")[:30]
+        .values("id", "title", "content", "tags", "updated_at")
+    )
+    lines.append(f"[노트] ({len(notes)}개)")
+    for n in notes:
+        preview = n["content"][:120].replace("\n", " ")
+        tags_str = " ".join(f"#{t}" for t in (n["tags"] or []))
+        lines.append(f"  - ID:{n['id']} 제목:{n['title'] or '제목없음'} | {preview}{(' ' + tags_str) if tags_str else ''}")
+
     return "\n".join(lines), projects
 
 
 CHAT_SYSTEM = """당신은 PlanB 생산성 앱의 AI 비서입니다. 항상 한국어로 답변하세요.
 
 ## PlanB 앱 구조
-PlanB는 다음 4가지 핵심 기능을 가진 프로젝트 관리 앱입니다:
+PlanB는 다음 5가지 핵심 기능을 가진 프로젝트 관리 앱입니다:
 1. **프로젝트/태스크**: 업무를 프로젝트 단위로 관리. 태스크에는 제목, 우선순위(urgent/high/medium/low), 마감일, 상태(todo/in_progress/done) 있음
 2. **캘린더**: 일정(이벤트) 관리. 시작/종료 시각 있음
 3. **플래너(일간)**: 오늘 할 일 목록(TimeBlock). 제목, 시간대, 카테고리(work/personal/health/learning/other) 있음
 4. **플래너(주간)**: 주간 리뷰 및 습관 관리
+5. **노트**: 자유형식 메모. Obsidian처럼 자유롭게 작성. 제목·내용·태그(#해시태그) 있음
 
 ## 사용자 발화 → 액션 매핑 (반드시 암기)
 | 사용자가 이렇게 말하면 | 이 액션을 사용 |
 |---|---|
-| "플래너에 OOO 등록해줘" / "오늘 할 일에 OOO 추가" / "오늘 플래너에 OOO" / "일간 플래너에 OOO" | create_time_block |
-| "캘린더에 OOO 일정 잡아줘" / "OOO 일정 등록해줘" / "OO월 OO일 OOO 일정" | create_event |
+| "플래너에 OOO 등록해줘" / "오늘 할 일에 OOO 추가" / "오늘 플래너에 OOO" | create_time_block |
+| "캘린더에 OOO 일정 잡아줘" / "OOO 일정 등록해줘" / "OO월 OO일 OOO" | create_event |
 | "OOO 프로젝트에 태스크 추가" / "OOO 업무 등록해줘" / "태스크 만들어줘" | create_task |
+| "노트에 OOO 적어줘" / "메모해줘: OOO" / "OOO 노트 저장해줘" | create_note |
+| "OOO 노트 찾아줘" / "OOO 관련 노트 있어?" / "OOO 메모 뭐라고 했지?" | 노트 컨텍스트 검색 후 reply만 |
 | "OOO 언제 마감이야?" / "진행 중인 태스크 알려줘" / "OOO 일정 있어?" | 조회 후 reply만 |
 
 ## 응답 형식 (코드블록 없이 순수 JSON만)
@@ -258,12 +274,16 @@ PlanB는 다음 4가지 핵심 기능을 가진 프로젝트 관리 앱입니다
 ### create_event (캘린더 일정)
 {"type": "create_event", "title": "일정 제목", "start_at": "YYYY-MM-DDTHH:MM:00", "end_at": "YYYY-MM-DDTHH:MM:00", "description": ""}
 
+### create_note (노트 저장)
+{"type": "create_note", "title": "노트 제목(첫 줄)", "content": "전체 내용", "tags": ["태그1", "태그2"]}
+
 ## 규칙
 - actions가 없으면 반드시 []
 - 프로젝트 언급 없이 태스크 추가 요청 시: 첫 번째 프로젝트 사용
 - 시간 언급 없는 플래너 항목: start_time/end_time null
 - "오늘", "지금", "내일" 등 상대적 날짜는 컨텍스트의 오늘 날짜 기준으로 계산
 - 카테고리 추론: 업무/회의/개발 → work, 운동/건강 → health, 독서/공부 → learning, 개인 용무 → personal
+- 노트 검색: 컨텍스트의 [노트] 섹션에서 제목·내용 전체 탐색 후 관련 내용 인용해서 답변
 - 조회 요청은 컨텍스트 데이터를 정확히 참조해서 답변 (없으면 "없다"고 정직하게)
 """
 
@@ -341,6 +361,19 @@ def chat(request, workspace_slug: str):
                     "label": f"태스크 생성됨: [{project.name}] {task.title}",
                     "id": task.id,
                     "project_id": project.id,
+                })
+            elif action.get("type") == "create_note":
+                note = Note.objects.create(
+                    workspace=workspace,
+                    user=request.user,
+                    title=action.get("title", ""),
+                    content=action.get("content", ""),
+                    tags=action.get("tags", []),
+                )
+                executed.append({
+                    "type": "create_note",
+                    "label": f"노트 저장됨: {note.title or '제목 없음'}",
+                    "id": str(note.id),
                 })
             elif action.get("type") == "create_time_block":
                 entry, _ = DailyEntry.objects.get_or_create(

@@ -72,6 +72,7 @@ urlpatterns = [
         include("apps.research.urls"),
     ),
     path("api/workspaces/<slug:workspace_slug>/ai/", include("apps.ai.urls")),
+    path("api/workspaces/<slug:workspace_slug>/notes/", include("apps.notes.urls")),
     path(
         "api/workspaces/<slug:workspace_slug>/projects/<uuid:project_id>/",
         include(ai_project_urlpatterns),

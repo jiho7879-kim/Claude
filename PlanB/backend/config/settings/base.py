@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "apps.research",
     "apps.ai",
     "apps.automation",
+    "apps.notes",
 ]
 
 MIDDLEWARE = [

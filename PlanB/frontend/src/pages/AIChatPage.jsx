@@ -10,7 +10,7 @@ const SUGGESTIONS = [
 ]
 
 function ActionBadge({ action }) {
-  const icon = action.type === 'create_task' ? '✅' : '📅'
+  const icon = action.type === 'create_task' ? '✅' : action.type === 'create_note' ? '📝' : action.type === 'create_time_block' ? '⏰' : '📅'
   return (
     <div style={{
       display: 'inline-flex', alignItems: 'center', gap: 6,
