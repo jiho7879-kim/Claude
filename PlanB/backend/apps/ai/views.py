@@ -15,18 +15,15 @@ from apps.workspaces.models import Workspace
 def _gemini(prompt: str, system: str = "") -> str:
     api_key = os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
-        return ""
-    try:
-        import google.generativeai as genai
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash",
-            system_instruction=system or "당신은 친절한 프로젝트 관리 어시스턴트입니다. 항상 한국어로 답변하세요.",
-        )
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception:
-        return ""
+        raise ValueError("GEMINI_API_KEY 환경변수가 설정되지 않았습니다.")
+    import google.generativeai as genai
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel(
+        model_name="gemini-1.5-flash",
+        system_instruction=system or "당신은 친절한 프로젝트 관리 어시스턴트입니다. 항상 한국어로 답변하세요.",
+    )
+    response = model.generate_content(prompt)
+    return response.text
 
 
 @api_view(["POST"])
@@ -225,7 +222,12 @@ def chat(request, workspace_slug: str):
 === 현재 질문 ===
 사용자: {message}"""
 
-    raw = _gemini(prompt, CHAT_SYSTEM)
+    try:
+        raw = _gemini(prompt, CHAT_SYSTEM)
+    except ValueError as e:
+        return Response({"reply": str(e), "actions": []})
+    except Exception as e:
+        return Response({"reply": f"Gemini API 오류: {str(e)}", "actions": []})
 
     # JSON 파싱 시도
     try:
