@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { getProjects, getTasks, getEvents, getSprints, getSprintStats, updateTask } from '../lib/workspaceApi'
+import { getBlocks, patchBlock } from '../lib/plannerApi'
 import useAuthStore from '../store/authStore'
 import useToastStore from '../store/toastStore'
 import { useCountUp } from '../hooks/useCountUp'
@@ -396,6 +397,79 @@ function SprintStatusPanel({ activeSprints, slug }) {
   )
 }
 
+const CAT_COLOR = { work: '#6366f1', personal: '#f59e0b', health: '#10b981', learning: '#3b82f6', other: '#94a3b8' }
+const CAT_LABEL = { work: '업무', personal: '개인', health: '건강', learning: '학습', other: '기타' }
+
+function TodayPlannerPanel({ blocks, onToggle, slug }) {
+  const navigate = useNavigate()
+  const done  = blocks.filter(b => b.is_done).length
+  const total = blocks.length
+  const pct   = total > 0 ? Math.round(done / total * 100) : 0
+
+  return (
+    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 18px', marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 15 }}>📋</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>오늘 할 일</span>
+          {total > 0 && (
+            <span style={{ fontSize: 11, background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 20, padding: '1px 7px', color: 'var(--text-muted)' }}>
+              {done}/{total}
+            </span>
+          )}
+        </div>
+        <button onClick={() => navigate(`/workspaces/${slug}/planner`)}
+          style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+          플래너 →
+        </button>
+      </div>
+
+      {total > 0 && (
+        <div style={{ marginBottom: 10, height: 4, background: 'var(--bg-elevated)', borderRadius: 4, overflow: 'hidden' }}>
+          <div style={{ width: `${pct}%`, height: '100%', background: pct === 100 ? '#10b981' : 'var(--accent)', borderRadius: 4, transition: 'width 0.4s' }} />
+        </div>
+      )}
+
+      {total === 0 ? (
+        <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--text-muted)', fontSize: 12 }}>
+          오늘 할 일이 없습니다
+          <br />
+          <button onClick={() => navigate(`/workspaces/${slug}/planner`)}
+            style={{ marginTop: 8, fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}>
+            + 플래너에서 추가
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {blocks.map(b => (
+            <div key={b.id}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0',
+                borderBottom: '1px solid var(--border)', opacity: b.is_done ? 0.5 : 1 }}>
+              <button onClick={() => onToggle(b)}
+                style={{ width: 18, height: 18, borderRadius: 4, flexShrink: 0, cursor: 'pointer',
+                  background: b.is_done ? 'var(--accent)' : 'transparent',
+                  border: `2px solid ${b.is_done ? 'var(--accent)' : 'var(--border)'}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 10 }}>
+                {b.is_done ? '✓' : ''}
+              </button>
+              <span style={{ flex: 1, fontSize: 12, color: 'var(--text-primary)',
+                textDecoration: b.is_done ? 'line-through' : 'none',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {b.title}
+              </span>
+              <span style={{ fontSize: 10, color: CAT_COLOR[b.category] || '#94a3b8',
+                background: `${CAT_COLOR[b.category] || '#94a3b8'}18`,
+                borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>
+                {CAT_LABEL[b.category] || b.category}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ActivityFeedPanel({ recentTasks, slug }) {
   const navigate = useNavigate()
   const fmtRelative = (iso) => {
@@ -459,6 +533,7 @@ export default function DashboardPage() {
   const [allTasks, setAllTasks] = useState([])
   const [events, setEvents] = useState([])
   const [activeSprints, setActiveSprints] = useState([])
+  const [todayBlocks, setTodayBlocks] = useState([])
 
   useEffect(() => {
     if (!slug) return
@@ -476,6 +551,8 @@ export default function DashboardPage() {
         }))
       }))
       setActiveSprints(sprintResults.flat())
+      const today = new Date().toISOString().slice(0, 10)
+      getBlocks(slug, today).then(setTodayBlocks).catch(() => {})
     }).catch(() => toast('데이터 로드 실패', 'error')).finally(() => setLoading(false))
   }, [slug])
 
@@ -487,6 +564,15 @@ export default function DashboardPage() {
   const recentTasks = useMemo(() =>
     [...allTasks].filter(t => t.updated_at).sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at)).slice(0, 8)
   , [allTasks])
+
+  const handleToggleBlock = async (block) => {
+    const next = !block.is_done
+    setTodayBlocks(prev => prev.map(b => b.id === block.id ? { ...b, is_done: next } : b))
+    const today = new Date().toISOString().slice(0, 10)
+    patchBlock(slug, today, block.id, { is_done: next }).catch(() =>
+      setTodayBlocks(prev => prev.map(b => b.id === block.id ? { ...b, is_done: block.is_done } : b))
+    )
+  }
 
   const handleToggleDone = async (task) => {
     const newStatus = task.status === 'done' ? 'todo' : 'done'
@@ -508,6 +594,7 @@ export default function DashboardPage() {
       <div className="dashboard-grid" style={{ display: 'grid', gridTemplateColumns: '300px 1fr 240px', gap: 16, marginBottom: 16 }}>
         <div>
           <MyTasksPanel tasks={myTasks} slug={slug} onToggleDone={handleToggleDone} />
+          <TodayPlannerPanel blocks={todayBlocks} onToggle={handleToggleBlock} slug={slug} />
           <TodayEventsPanel events={events} slug={slug} />
         </div>
         <div>
