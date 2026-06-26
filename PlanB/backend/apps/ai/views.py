@@ -7,6 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.calendars.models import CalendarEvent
+from apps.planner.models import DailyEntry, TimeBlock
 from apps.projects.models import Project
 from apps.tasks.models import Task
 from apps.workspaces.models import Workspace
@@ -180,11 +181,10 @@ def weekly_summary(request, workspace_slug: str):
 
 
 def _build_workspace_context(workspace, user):
-    """사용자의 프로젝트·태스크·일정을 텍스트 컨텍스트로 변환"""
     today = datetime.date.today()
-    lines = [f"오늘 날짜: {today.isoformat()}", ""]
+    lines = [f"오늘 날짜: {today.isoformat()} ({today.strftime('%A')})", ""]
 
-    projects = list(Project.objects.filter(workspace=workspace).values("id", "name", "status", "description"))
+    projects = list(Project.objects.filter(workspace=workspace).values("id", "name", "status"))
     lines.append(f"[프로젝트 목록] ({len(projects)}개)")
     for p in projects:
         lines.append(f"  - ID:{p['id']} 이름:{p['name']} 상태:{p['status']}")
@@ -193,63 +193,78 @@ def _build_workspace_context(workspace, user):
     tasks = list(
         Task.objects.filter(project__workspace=workspace)
         .exclude(status="done")
-        .select_related("project", "assignee")
         .order_by("due_date")[:60]
-        .values("id", "title", "status", "priority", "due_date", "project__id", "project__name", "assignee__username")
+        .values("id", "title", "status", "priority", "due_date", "project__id", "project__name")
     )
-    lines.append(f"[진행 중인 태스크] ({len(tasks)}개, 완료 제외)")
+    lines.append(f"[진행 중인 태스크] ({len(tasks)}개)")
     for t in tasks:
         due = t["due_date"] or "미정"
-        overdue = " ⚠️초과" if t["due_date"] and t["due_date"] < today else ""
-        lines.append(
-            f"  - ID:{t['id']} [{t['project__name']}] {t['title']} | 상태:{t['status']} 우선순위:{t['priority']} 마감:{due}{overdue}"
-        )
+        flag = " ⚠️마감초과" if t["due_date"] and t["due_date"] < today else ""
+        lines.append(f"  - ID:{t['id']} [{t['project__name']}] {t['title']} | {t['status']} | 우선순위:{t['priority']} | 마감:{due}{flag}")
 
     lines.append("")
     events = list(
         CalendarEvent.objects.filter(workspace=workspace, start_at__date__gte=today)
         .order_by("start_at")[:20]
-        .values("id", "title", "start_at", "end_at", "description")
+        .values("id", "title", "start_at", "end_at")
     )
-    lines.append(f"[예정된 일정] ({len(events)}개)")
+    lines.append(f"[예정 일정] ({len(events)}개)")
     for e in events:
-        lines.append(f"  - ID:{e['id']} {e['title']} | {e['start_at'].strftime('%Y-%m-%d %H:%M')} ~ {e['end_at'].strftime('%H:%M')}")
+        lines.append(f"  - ID:{e['id']} {e['title']} | {e['start_at'].strftime('%Y-%m-%d %H:%M')}~{e['end_at'].strftime('%H:%M')}")
+
+    lines.append("")
+    try:
+        entry = DailyEntry.objects.get(user=user, workspace=workspace, date=today)
+        blocks = list(entry.time_blocks.values("id", "title", "start_time", "end_time", "category", "is_done", "order"))
+    except DailyEntry.DoesNotExist:
+        blocks = []
+    lines.append(f"[오늘 플래너 할일] ({len(blocks)}개) - 오늘 날짜:{today.isoformat()}")
+    for b in blocks:
+        done = "✓" if b["is_done"] else "○"
+        time_str = f" {b['start_time']}~{b['end_time']}" if b["start_time"] else ""
+        lines.append(f"  - ID:{b['id']} {done} {b['title']}{time_str} [{b['category']}]")
 
     return "\n".join(lines), projects
 
 
-CHAT_SYSTEM = """당신은 PlanB 프로젝트 관리 AI 비서입니다. 한국어로 답변하세요.
+CHAT_SYSTEM = """당신은 PlanB 생산성 앱의 AI 비서입니다. 항상 한국어로 답변하세요.
 
-사용자의 질문에 답하거나 요청한 작업을 수행할 수 있습니다.
-- 태스크/일정 조회: 컨텍스트 데이터를 기반으로 정확하게 답변
-- 태스크 생성: 사용자가 특정 프로젝트에 태스크를 추가하라고 하면 actions에 포함
-- 일정 생성: 사용자가 일정을 등록하라고 하면 actions에 포함
+## PlanB 앱 구조
+PlanB는 다음 4가지 핵심 기능을 가진 프로젝트 관리 앱입니다:
+1. **프로젝트/태스크**: 업무를 프로젝트 단위로 관리. 태스크에는 제목, 우선순위(urgent/high/medium/low), 마감일, 상태(todo/in_progress/done) 있음
+2. **캘린더**: 일정(이벤트) 관리. 시작/종료 시각 있음
+3. **플래너(일간)**: 오늘 할 일 목록(TimeBlock). 제목, 시간대, 카테고리(work/personal/health/learning/other) 있음
+4. **플래너(주간)**: 주간 리뷰 및 습관 관리
 
-반드시 다음 JSON 형식으로만 응답하세요 (마크다운 코드블록 없이):
-{
-  "reply": "사용자에게 보여줄 자연스러운 답변 텍스트",
-  "actions": [
-    {
-      "type": "create_task",
-      "project_id": <int>,
-      "project_name": "<프로젝트 이름>",
-      "title": "<태스크 제목>",
-      "priority": "urgent|high|medium|low",
-      "due_date": "YYYY-MM-DD or null"
-    },
-    {
-      "type": "create_event",
-      "title": "<일정 제목>",
-      "start_at": "YYYY-MM-DDTHH:MM:00",
-      "end_at": "YYYY-MM-DDTHH:MM:00",
-      "description": ""
-    }
-  ]
-}
+## 사용자 발화 → 액션 매핑 (반드시 암기)
+| 사용자가 이렇게 말하면 | 이 액션을 사용 |
+|---|---|
+| "플래너에 OOO 등록해줘" / "오늘 할 일에 OOO 추가" / "오늘 플래너에 OOO" / "일간 플래너에 OOO" | create_time_block |
+| "캘린더에 OOO 일정 잡아줘" / "OOO 일정 등록해줘" / "OO월 OO일 OOO 일정" | create_event |
+| "OOO 프로젝트에 태스크 추가" / "OOO 업무 등록해줘" / "태스크 만들어줘" | create_task |
+| "OOO 언제 마감이야?" / "진행 중인 태스크 알려줘" / "OOO 일정 있어?" | 조회 후 reply만 |
 
-actions가 없으면 빈 배열 []로 설정하세요.
-태스크 생성 시 project_id는 컨텍스트에 있는 ID를 사용하세요.
-날짜·시간을 모르면 합리적으로 추정하세요(오늘 기준 +1일, 1시간 단위).
+## 응답 형식 (코드블록 없이 순수 JSON만)
+{"reply": "자연스러운 한국어 답변", "actions": [...]}
+
+## actions 스키마
+
+### create_time_block (플래너 오늘 할 일)
+{"type": "create_time_block", "title": "할 일 제목", "category": "work|personal|health|learning|other", "start_time": "HH:MM or null", "end_time": "HH:MM or null"}
+
+### create_task (프로젝트 태스크)
+{"type": "create_task", "project_id": <int>, "project_name": "프로젝트명", "title": "태스크 제목", "priority": "urgent|high|medium|low", "due_date": "YYYY-MM-DD or null"}
+
+### create_event (캘린더 일정)
+{"type": "create_event", "title": "일정 제목", "start_at": "YYYY-MM-DDTHH:MM:00", "end_at": "YYYY-MM-DDTHH:MM:00", "description": ""}
+
+## 규칙
+- actions가 없으면 반드시 []
+- 프로젝트 언급 없이 태스크 추가 요청 시: 첫 번째 프로젝트 사용
+- 시간 언급 없는 플래너 항목: start_time/end_time null
+- "오늘", "지금", "내일" 등 상대적 날짜는 컨텍스트의 오늘 날짜 기준으로 계산
+- 카테고리 추론: 업무/회의/개발 → work, 운동/건강 → health, 독서/공부 → learning, 개인 용무 → personal
+- 조회 요청은 컨텍스트 데이터를 정확히 참조해서 답변 (없으면 "없다"고 정직하게)
 """
 
 
@@ -326,6 +341,24 @@ def chat(request, workspace_slug: str):
                     "label": f"태스크 생성됨: [{project.name}] {task.title}",
                     "id": task.id,
                     "project_id": project.id,
+                })
+            elif action.get("type") == "create_time_block":
+                entry, _ = DailyEntry.objects.get_or_create(
+                    user=request.user, workspace=workspace, date=datetime.date.today()
+                )
+                last_order = entry.time_blocks.count()
+                block = TimeBlock.objects.create(
+                    daily_entry=entry,
+                    title=action.get("title", "새 할 일"),
+                    category=action.get("category", "work"),
+                    start_time=action.get("start_time") or None,
+                    end_time=action.get("end_time") or None,
+                    order=last_order,
+                )
+                executed.append({
+                    "type": "create_time_block",
+                    "label": f"플래너 등록됨: {block.title}",
+                    "id": str(block.id),
                 })
             elif action.get("type") == "create_event":
                 event = CalendarEvent.objects.create(
