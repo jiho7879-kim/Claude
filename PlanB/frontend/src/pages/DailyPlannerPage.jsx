@@ -358,7 +358,7 @@ export default function DailyPlannerPage() {
 
   // ─── 렌더 ───────────────────────────────────────────────
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-base)', overflow: 'hidden' }}>
+    <div className="planner-page" style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-base)', overflow: 'hidden' }}>
 
       {/* ambient */}
       <div style={{ position: 'absolute', inset: 0, background: ambientBg, pointerEvents: 'none', transition: 'background 1s', zIndex: 0 }} />
