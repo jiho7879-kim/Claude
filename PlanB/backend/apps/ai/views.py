@@ -12,35 +12,72 @@ from apps.tasks.models import Task
 from apps.workspaces.models import Workspace
 
 
-_MODELS = ["gemini-1.5-flash-8b", "gemini-1.5-flash", "gemini-2.0-flash-lite", "gemini-2.0-flash"]
+_GEMINI_MODELS = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b"]
+_GROQ_MODELS = ["llama-3.3-70b-versatile", "llama3-8b-8192"]
+
+
+def _try_gemini(prompt: str, system: str) -> str:
+    api_key = os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY 없음")
+    from google import genai
+    from google.genai import types
+    client = genai.Client(api_key=api_key)
+    last_exc = None
+    for model_name in _GEMINI_MODELS:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(system_instruction=system),
+            )
+            return response.text
+        except Exception as e:
+            last_exc = e
+            if "429" not in str(e) and "404" not in str(e):
+                raise
+    raise last_exc
+
+
+def _try_groq(prompt: str, system: str) -> str:
+    api_key = os.environ.get("GROQ_API_KEY", "")
+    if not api_key:
+        raise ValueError("GROQ_API_KEY 없음")
+    from groq import Groq
+    client = Groq(api_key=api_key)
+    last_exc = None
+    for model_name in _GROQ_MODELS:
+        try:
+            resp = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.7,
+            )
+            return resp.choices[0].message.content
+        except Exception as e:
+            last_exc = e
+            if "429" not in str(e) and "404" not in str(e) and "model_not_found" not in str(e):
+                raise
+    raise last_exc
 
 
 def _gemini(prompt: str, system: str = "") -> str:
-    import logging
-    logger = logging.getLogger(__name__)
-
-    api_key = os.environ.get("GEMINI_API_KEY", "")
-    if not api_key:
-        raise ValueError("GEMINI_API_KEY 환경변수가 설정되지 않았습니다.")
-    import google.generativeai as genai
-    genai.configure(api_key=api_key)
-    last_exc = None
-    for model_name in _MODELS:
-        try:
-            model = genai.GenerativeModel(
-                model_name=model_name,
-                system_instruction=system or "당신은 친절한 프로젝트 관리 어시스턴트입니다. 항상 한국어로 답변하세요.",
-            )
-            result = model.generate_content(prompt).text
-            logger.info(f"[Gemini] success with {model_name}")
-            return result
-        except Exception as e:
-            err_str = str(e)
-            logger.warning(f"[Gemini] {model_name} failed: {err_str[:200]}")
-            last_exc = e
-            if "429" not in err_str and "404" not in err_str:
-                raise
-    raise last_exc
+    system_text = system or "당신은 친절한 프로젝트 관리 어시스턴트입니다. 항상 한국어로 답변하세요."
+    errors = []
+    # 1순위: Gemini
+    try:
+        return _try_gemini(prompt, system_text)
+    except Exception as e:
+        errors.append(f"Gemini: {str(e)[:80]}")
+    # 2순위: Groq (자동 전환)
+    try:
+        return _try_groq(prompt, system_text)
+    except Exception as e:
+        errors.append(f"Groq: {str(e)[:80]}")
+    raise RuntimeError(" | ".join(errors))
 
 
 @api_view(["POST"])
