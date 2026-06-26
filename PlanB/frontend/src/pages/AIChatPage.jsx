@@ -108,7 +108,7 @@ export default function AIChatPage() {
         <div style={{ width: 38, height: 38, borderRadius: 10, background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🤖</div>
         <div>
           <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>AI 비서</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Gemini 1.5 Flash · 프로젝트 데이터 연동</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Gemini 2.0 Flash · 프로젝트 데이터 연동</div>
         </div>
       </div>
 

@@ -19,7 +19,7 @@ def _gemini(prompt: str, system: str = "") -> str:
     import google.generativeai as genai
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
+        model_name="gemini-2.0-flash",
         system_instruction=system or "당신은 친절한 프로젝트 관리 어시스턴트입니다. 항상 한국어로 답변하세요.",
     )
     response = model.generate_content(prompt)
