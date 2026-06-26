@@ -26,14 +26,14 @@ function NavItem({ to, icon, label, end, collapsed }) {
   )
 }
 
-export default function Sidebar({ projects = [], collapsed, onToggle }) {
+export default function Sidebar({ projects = [], collapsed, onToggle, mobileOpen, onMobileClose }) {
   const { slug, projectId } = useParams()
   const { user, logout } = useAuthStore()
   const { show } = useCommandPaletteStore()
   const navigate = useNavigate()
 
   return (
-    <div className="app-sidebar" style={{ width: collapsed ? 56 : 240, transition: 'width 0.2s var(--ease)', overflow: 'hidden' }}>
+    <div className={`app-sidebar${mobileOpen ? ' sidebar-mobile-open' : ''}`} style={{ width: collapsed ? 56 : 240, transition: 'width 0.2s var(--ease)', overflow: 'hidden' }}>
       {/* Logo */}
       <div style={{ padding: collapsed ? '12px 6px' : '14px 12px 10px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start' }}>
         <button onClick={() => navigate('/')} title="홈" style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0' }}>
