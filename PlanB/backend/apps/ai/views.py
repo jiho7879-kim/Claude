@@ -12,18 +12,28 @@ from apps.tasks.models import Task
 from apps.workspaces.models import Workspace
 
 
+_MODELS = ["gemini-1.5-flash-8b", "gemini-1.5-flash", "gemini-2.0-flash-lite"]
+
+
 def _gemini(prompt: str, system: str = "") -> str:
     api_key = os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
-        raise ValueError("GEMINI_API_KEY 환경변수가 설정되지 않았습니다.")
+        raise ValueError("GEMINI_API_KEY 환경변수가 설정되지 않았습니다. Render 환경변수를 확인해주세요.")
     import google.generativeai as genai
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(
-        model_name="gemini-2.0-flash",
-        system_instruction=system or "당신은 친절한 프로젝트 관리 어시스턴트입니다. 항상 한국어로 답변하세요.",
-    )
-    response = model.generate_content(prompt)
-    return response.text
+    last_exc = None
+    for model_name in _MODELS:
+        try:
+            model = genai.GenerativeModel(
+                model_name=model_name,
+                system_instruction=system or "당신은 친절한 프로젝트 관리 어시스턴트입니다. 항상 한국어로 답변하세요.",
+            )
+            return model.generate_content(prompt).text
+        except Exception as e:
+            last_exc = e
+            if "429" not in str(e) and "404" not in str(e):
+                raise
+    raise last_exc
 
 
 @api_view(["POST"])
@@ -227,7 +237,10 @@ def chat(request, workspace_slug: str):
     except ValueError as e:
         return Response({"reply": str(e), "actions": []})
     except Exception as e:
-        return Response({"reply": f"Gemini API 오류: {str(e)}", "actions": []})
+        err = str(e)
+        if "429" in err:
+            return Response({"reply": "⚠️ Gemini API 무료 쿼터를 초과했습니다.\n\n**해결 방법:**\n1. aistudio.google.com → API 키 발급 (AI Studio 전용 키 사용)\n2. 또는 잠시 후 다시 시도해주세요 (분당 제한 초과 시 1분 대기)", "actions": []})
+        return Response({"reply": f"Gemini API 오류: {err}", "actions": []})
 
     # JSON 파싱 시도
     try:
