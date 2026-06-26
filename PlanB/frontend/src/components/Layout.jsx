@@ -111,9 +111,9 @@ export default function Layout({ children }) {
           <NavLink to={`/workspaces/${slug}/planner`} className={({ isActive }) => isActive ? 'active' : ''}>
             <span className="nav-icon">📓</span>플래너
           </NavLink>
-          <button onClick={() => setMobileOpen(true)}>
-            <span className="nav-icon">☰</span>더보기
-          </button>
+          <NavLink to={`/workspaces/${slug}/assistant`} className={({ isActive }) => isActive ? 'active' : ''}>
+            <span className="nav-icon">🤖</span>AI
+          </NavLink>
         </nav>
       )}
 

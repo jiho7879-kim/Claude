@@ -1,10 +1,12 @@
 import json
 import os
+import datetime
 
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from apps.calendars.models import CalendarEvent
 from apps.projects.models import Project
 from apps.tasks.models import Task
 from apps.workspaces.models import Workspace
@@ -118,3 +120,163 @@ def weekly_summary(request, workspace_slug: str):
         "summary": summary,
         "stats": {"total": total, "done": done, "in_progress": in_progress, "overdue": overdue},
     })
+
+
+def _build_workspace_context(workspace, user):
+    """사용자의 프로젝트·태스크·일정을 텍스트 컨텍스트로 변환"""
+    today = datetime.date.today()
+    lines = [f"오늘 날짜: {today.isoformat()}", ""]
+
+    projects = list(Project.objects.filter(workspace=workspace).values("id", "name", "status", "description"))
+    lines.append(f"[프로젝트 목록] ({len(projects)}개)")
+    for p in projects:
+        lines.append(f"  - ID:{p['id']} 이름:{p['name']} 상태:{p['status']}")
+
+    lines.append("")
+    tasks = list(
+        Task.objects.filter(project__workspace=workspace)
+        .exclude(status="done")
+        .select_related("project", "assignee")
+        .order_by("due_date")[:60]
+        .values("id", "title", "status", "priority", "due_date", "project__id", "project__name", "assignee__username")
+    )
+    lines.append(f"[진행 중인 태스크] ({len(tasks)}개, 완료 제외)")
+    for t in tasks:
+        due = t["due_date"] or "미정"
+        overdue = " ⚠️초과" if t["due_date"] and t["due_date"] < today else ""
+        lines.append(
+            f"  - ID:{t['id']} [{t['project__name']}] {t['title']} | 상태:{t['status']} 우선순위:{t['priority']} 마감:{due}{overdue}"
+        )
+
+    lines.append("")
+    events = list(
+        CalendarEvent.objects.filter(workspace=workspace, start_at__date__gte=today)
+        .order_by("start_at")[:20]
+        .values("id", "title", "start_at", "end_at", "description")
+    )
+    lines.append(f"[예정된 일정] ({len(events)}개)")
+    for e in events:
+        lines.append(f"  - ID:{e['id']} {e['title']} | {e['start_at'].strftime('%Y-%m-%d %H:%M')} ~ {e['end_at'].strftime('%H:%M')}")
+
+    return "\n".join(lines), projects
+
+
+CHAT_SYSTEM = """당신은 PlanB 프로젝트 관리 AI 비서입니다. 한국어로 답변하세요.
+
+사용자의 질문에 답하거나 요청한 작업을 수행할 수 있습니다.
+- 태스크/일정 조회: 컨텍스트 데이터를 기반으로 정확하게 답변
+- 태스크 생성: 사용자가 특정 프로젝트에 태스크를 추가하라고 하면 actions에 포함
+- 일정 생성: 사용자가 일정을 등록하라고 하면 actions에 포함
+
+반드시 다음 JSON 형식으로만 응답하세요 (마크다운 코드블록 없이):
+{
+  "reply": "사용자에게 보여줄 자연스러운 답변 텍스트",
+  "actions": [
+    {
+      "type": "create_task",
+      "project_id": <int>,
+      "project_name": "<프로젝트 이름>",
+      "title": "<태스크 제목>",
+      "priority": "urgent|high|medium|low",
+      "due_date": "YYYY-MM-DD or null"
+    },
+    {
+      "type": "create_event",
+      "title": "<일정 제목>",
+      "start_at": "YYYY-MM-DDTHH:MM:00",
+      "end_at": "YYYY-MM-DDTHH:MM:00",
+      "description": ""
+    }
+  ]
+}
+
+actions가 없으면 빈 배열 []로 설정하세요.
+태스크 생성 시 project_id는 컨텍스트에 있는 ID를 사용하세요.
+날짜·시간을 모르면 합리적으로 추정하세요(오늘 기준 +1일, 1시간 단위).
+"""
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def chat(request, workspace_slug: str):
+    message = request.data.get("message", "").strip()
+    history = request.data.get("history", [])  # [{role, content}]
+    if not message:
+        return Response({"error": "message is required"}, status=400)
+
+    try:
+        workspace = Workspace.objects.get(slug=workspace_slug, members__user=request.user)
+    except Workspace.DoesNotExist:
+        return Response({"error": "workspace not found"}, status=404)
+
+    context_text, projects = _build_workspace_context(workspace, request.user)
+
+    # 대화 히스토리 포맷
+    history_text = ""
+    for h in history[-6:]:  # 최근 6턴만 포함
+        role = "사용자" if h.get("role") == "user" else "비서"
+        history_text += f"{role}: {h.get('content', '')}\n"
+
+    prompt = f"""=== 워크스페이스 데이터 ===
+{context_text}
+
+=== 대화 히스토리 ===
+{history_text}
+=== 현재 질문 ===
+사용자: {message}"""
+
+    raw = _gemini(prompt, CHAT_SYSTEM)
+
+    # JSON 파싱 시도
+    try:
+        # 코드블록 제거
+        clean = raw.strip()
+        if clean.startswith("```"):
+            clean = clean.split("```")[1]
+            if clean.startswith("json"):
+                clean = clean[4:]
+        result = json.loads(clean.strip())
+        reply = result.get("reply", raw)
+        actions = result.get("actions", [])
+    except Exception:
+        reply = raw or "죄송합니다, 응답을 처리하는 중 오류가 발생했습니다."
+        actions = []
+
+    # 액션 실행
+    executed = []
+    for action in actions:
+        try:
+            if action.get("type") == "create_task":
+                project = Project.objects.get(id=action["project_id"], workspace=workspace)
+                task = Task.objects.create(
+                    project=project,
+                    title=action.get("title", "새 태스크"),
+                    priority=action.get("priority", "medium"),
+                    due_date=action.get("due_date") or None,
+                    created_by=request.user,
+                    status="todo",
+                )
+                executed.append({
+                    "type": "create_task",
+                    "label": f"태스크 생성됨: [{project.name}] {task.title}",
+                    "id": task.id,
+                    "project_id": project.id,
+                })
+            elif action.get("type") == "create_event":
+                event = CalendarEvent.objects.create(
+                    workspace=workspace,
+                    title=action.get("title", "새 일정"),
+                    start_at=action.get("start_at"),
+                    end_at=action.get("end_at"),
+                    description=action.get("description", ""),
+                    created_by=request.user,
+                )
+                executed.append({
+                    "type": "create_event",
+                    "label": f"일정 등록됨: {event.title} ({event.start_at.strftime('%m/%d %H:%M')})",
+                    "id": event.id,
+                })
+        except Exception:
+            pass
+
+    return Response({"reply": reply, "actions": executed})

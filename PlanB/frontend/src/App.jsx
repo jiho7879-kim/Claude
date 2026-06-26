@@ -22,6 +22,7 @@ import ProjectSettingsPage from './pages/ProjectSettingsPage'
 import DashboardPage from './pages/DashboardPage'
 import DailyPlannerPage from './pages/DailyPlannerPage'
 import WeeklyPlannerPage from './pages/WeeklyPlannerPage'
+import AIChatPage from './pages/AIChatPage'
 
 function AppShell({ children }) {
   useCommandPaletteShortcut()
@@ -69,6 +70,7 @@ export default function App() {
           <Route path="/workspaces/:slug/planner/week"                         element={<PrivateRoute><WeeklyPlannerPage /></PrivateRoute>} />
           <Route path="/workspaces/:slug/calendar"                              element={<PrivateRoute><CalendarPage /></PrivateRoute>} />
           <Route path="/workspaces/:slug/members"                               element={<PrivateRoute><MembersPage /></PrivateRoute>} />
+          <Route path="/workspaces/:slug/assistant"                             element={<PrivateRoute><AIChatPage /></PrivateRoute>} />
           <Route path="/present/:slug"                                          element={<PresentationPage />} />
           <Route path="*"                                                       element={<Navigate to="/" replace />} />
         </Routes>

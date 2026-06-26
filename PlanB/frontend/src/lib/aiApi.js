@@ -8,3 +8,6 @@ export const epicBreakdown = (slug, projectId, title, description = '') =>
 
 export const weeklySummary = (slug) =>
   api.get(`/api/workspaces/${slug}/ai/weekly-summary/`).then(r => r.data)
+
+export const aiChat = (slug, message, history = []) =>
+  api.post(`/api/workspaces/${slug}/ai/chat/`, { message, history }).then(r => r.data)

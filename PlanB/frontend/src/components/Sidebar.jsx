@@ -75,6 +75,7 @@ export default function Sidebar({ projects = [], collapsed, onToggle, mobileOpen
               </div>
             )}
             <NavItem to={`/workspaces/${slug}/members`} icon="👥" label="멤버" collapsed={collapsed} />
+            <NavItem to={`/workspaces/${slug}/assistant`} icon="🤖" label="AI 비서" collapsed={collapsed} />
 
             {!collapsed && projects.length > 0 && (
               <>
