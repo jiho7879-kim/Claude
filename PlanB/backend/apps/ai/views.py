@@ -19,7 +19,14 @@ from apps.tasks.models import Task
 from apps.workspaces.models import Workspace
 
 
-_GEMINI_MODELS = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b"]
+# Models tried in order. 1.5-flash returns 404 on v1beta API keys → removed.
+# When 2.0-flash hits 429 (free-tier RPM limit), we fall back to Groq immediately
+# rather than burning time on other Gemini models that share the same quota.
+_GEMINI_MODELS = [
+    "gemini-2.5-flash",          # newest, higher free quota
+    "gemini-2.0-flash",          # standard free-tier model
+    "gemini-2.0-flash-lite",     # lightweight fallback
+]
 _GROQ_MODELS = ["llama-3.3-70b-versatile", "llama3-8b-8192"]
 
 
@@ -46,9 +53,14 @@ def _try_gemini(prompt: str, system: str) -> tuple[str, str]:
             logger.info("[GEMINI] Success with model: %s", model_name)
             return response.text, model_name
         except Exception as e:
-            logger.warning("[GEMINI] Model %s failed: %s", model_name, str(e)[:200])
+            err_str = str(e)
+            logger.warning("[GEMINI] Model %s failed: %s", model_name, err_str[:200])
             last_exc = e
-            if "429" not in str(e) and "404" not in str(e):
+            if "429" in err_str:
+                # All Gemini models share the same quota — no point trying others
+                logger.warning("[GEMINI] 429 quota hit, skipping remaining Gemini models")
+                break
+            if "404" not in err_str:
                 raise
     raise last_exc
 
