@@ -19,13 +19,14 @@ from apps.tasks.models import Task
 from apps.workspaces.models import Workspace
 
 
-# Models tried in order. 1.5-flash returns 404 on v1beta API keys → removed.
-# When 2.0-flash hits 429 (free-tier RPM limit), we fall back to Groq immediately
-# rather than burning time on other Gemini models that share the same quota.
+# Priority: stable models first, preview models excluded for production reliability.
+# gemini-3.5-flash: best balance (speed/cost/agentic) — primary
+# gemini-3.1-flash-lite: ultra-fast cost-efficient stable fallback
+# gemini-2.5-flash: previous-gen stable, last resort before Groq
 _GEMINI_MODELS = [
-    "gemini-2.5-flash",          # newest, higher free quota
-    "gemini-2.0-flash",          # standard free-tier model
-    "gemini-2.0-flash-lite",     # lightweight fallback
+    "gemini-3.5-flash",
+    "gemini-3.1-flash-lite",
+    "gemini-2.5-flash",
 ]
 _GROQ_MODELS = ["llama-3.3-70b-versatile", "llama3-8b-8192"]
 
