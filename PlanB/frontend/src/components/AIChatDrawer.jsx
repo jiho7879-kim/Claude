@@ -80,6 +80,7 @@ export default function AIChatDrawer({ open, onClose }) {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [lastModel, setLastModel] = useState(null)
+  const sendingRef = useRef(false)  // guards against double-send
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
 
@@ -95,7 +96,8 @@ export default function AIChatDrawer({ open, onClose }) {
 
   const send = async (text) => {
     const msg = (text !== undefined ? text : input).trim()
-    if (!msg || loading || !slug) return
+    if (!msg || loading || !slug || sendingRef.current) return
+    sendingRef.current = true
     setInput('')
     setMessages(prev => [...prev,
       { role: 'user', content: msg },
@@ -119,6 +121,7 @@ export default function AIChatDrawer({ open, onClose }) {
       })
     } finally {
       setLoading(false)
+      sendingRef.current = false
       inputRef.current?.focus()
     }
   }

@@ -1,11 +1,15 @@
 import json
+import logging
 import os
 import re
+import uuid
 import datetime
 
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+
+logger = logging.getLogger("planb.ai")
 
 from apps.calendars.models import CalendarEvent
 from apps.notes.models import Note
@@ -21,6 +25,7 @@ _GROQ_MODELS = ["llama-3.3-70b-versatile", "llama3-8b-8192"]
 
 def _try_gemini(prompt: str, system: str) -> tuple[str, str]:
     api_key = os.environ.get("GEMINI_API_KEY", "")
+    logger.info("[GEMINI] API key present: %s", bool(api_key))
     if not api_key:
         raise ValueError("GEMINI_API_KEY 없음")
     try:
@@ -32,13 +37,16 @@ def _try_gemini(prompt: str, system: str) -> tuple[str, str]:
     last_exc = None
     for model_name in _GEMINI_MODELS:
         try:
+            logger.info("[GEMINI] Trying model: %s", model_name)
             response = client.models.generate_content(
                 model=model_name,
                 contents=prompt,
                 config=types.GenerateContentConfig(system_instruction=system),
             )
+            logger.info("[GEMINI] Success with model: %s", model_name)
             return response.text, model_name
         except Exception as e:
+            logger.warning("[GEMINI] Model %s failed: %s", model_name, str(e)[:200])
             last_exc = e
             if "429" not in str(e) and "404" not in str(e):
                 raise
@@ -47,6 +55,7 @@ def _try_gemini(prompt: str, system: str) -> tuple[str, str]:
 
 def _try_groq(prompt: str, system: str) -> tuple[str, str]:
     api_key = os.environ.get("GROQ_API_KEY", "")
+    logger.info("[GROQ] API key present: %s", bool(api_key))
     if not api_key:
         raise ValueError("GROQ_API_KEY 없음")
     try:
@@ -57,6 +66,7 @@ def _try_groq(prompt: str, system: str) -> tuple[str, str]:
     last_exc = None
     for model_name in _GROQ_MODELS:
         try:
+            logger.info("[GROQ] Trying model: %s", model_name)
             resp = client.chat.completions.create(
                 model=model_name,
                 messages=[
@@ -66,8 +76,10 @@ def _try_groq(prompt: str, system: str) -> tuple[str, str]:
                 temperature=0.3,
                 response_format={"type": "json_object"},
             )
+            logger.info("[GROQ] Success with model: %s", model_name)
             return resp.choices[0].message.content, model_name
         except Exception as e:
+            logger.warning("[GROQ] Model %s failed: %s", model_name, str(e)[:200])
             last_exc = e
             err_str = str(e)
             if "429" not in err_str and "404" not in err_str and "model_not_found" not in err_str:
@@ -76,7 +88,7 @@ def _try_groq(prompt: str, system: str) -> tuple[str, str]:
 
 
 def _gemini(prompt: str, system: str = "") -> tuple[str, str]:
-    """Returns (text, model_label). model_label e.g. 'Gemini 2.0 Flash' or 'Groq LLaMA 3.3'."""
+    """Returns (text, model_label)."""
     system_text = system or "당신은 친절한 프로젝트 관리 어시스턴트입니다. 항상 한국어로 답변하세요."
     errors = []
     try:
@@ -84,13 +96,15 @@ def _gemini(prompt: str, system: str = "") -> tuple[str, str]:
         label = model.replace("gemini-", "Gemini ").replace("-", " ").title()
         return text, label
     except Exception as e:
-        errors.append(f"Gemini: {str(e)[:80]}")
+        errors.append(f"Gemini: {str(e)[:120]}")
+        logger.warning("[AI] Gemini failed, falling back to Groq. Error: %s", str(e)[:200])
     try:
         text, model = _try_groq(prompt, system_text)
         label = "Groq " + model.split("-")[0].capitalize()
         return text, label
     except Exception as e:
-        errors.append(f"Groq: {str(e)[:80]}")
+        errors.append(f"Groq: {str(e)[:120]}")
+        logger.error("[AI] Both Gemini and Groq failed: %s", " | ".join(errors))
     raise RuntimeError(" | ".join(errors))
 
 
@@ -359,10 +373,13 @@ PlanB는 다음 5가지 핵심 기능을 가진 프로젝트 관리 앱입니다
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def chat(request, workspace_slug: str):
+    req_id = str(uuid.uuid4())[:8]
     message = request.data.get("message", "").strip()
-    history = request.data.get("history", [])  # [{role, content}]
+    history = request.data.get("history", [])
     if not message:
         return Response({"error": "message is required"}, status=400)
+
+    logger.info("[CHAT:%s] user=%s slug=%s msg=%r", req_id, request.user, workspace_slug, message[:80])
 
     try:
         workspace = Workspace.objects.get(slug=workspace_slug, members__user=request.user)
@@ -371,9 +388,8 @@ def chat(request, workspace_slug: str):
 
     context_text, projects = _build_workspace_context(workspace, request.user)
 
-    # 대화 히스토리 포맷
     history_text = ""
-    for h in history[-6:]:  # 최근 6턴만 포함
+    for h in history[-6:]:
         role = "사용자" if h.get("role") == "user" else "비서"
         history_text += f"{role}: {h.get('content', '')}\n"
 
@@ -387,28 +403,35 @@ def chat(request, workspace_slug: str):
 
     try:
         raw, model_label = _gemini(prompt, CHAT_SYSTEM)
+        logger.info("[CHAT:%s] model=%s raw_len=%d", req_id, model_label, len(raw))
     except ValueError as e:
+        logger.error("[CHAT:%s] ValueError: %s", req_id, e)
         return Response({"reply": str(e), "actions": [], "model": None})
     except Exception as e:
         err = str(e)
+        logger.error("[CHAT:%s] AI error: %s", req_id, err[:300])
         if "429" in err:
             return Response({"reply": "⚠️ Gemini API 무료 쿼터를 초과했습니다.\n\n**해결 방법:**\n1. aistudio.google.com → API 키 발급 (AI Studio 전용 키 사용)\n2. 또는 잠시 후 다시 시도해주세요 (분당 제한 초과 시 1분 대기)", "actions": [], "model": None})
         return Response({"reply": f"AI 오류: {err}", "actions": [], "model": None})
 
     # 견고한 JSON 파싱
     result = _extract_json(raw)
+    logger.info("[CHAT:%s] parsed_ok=%s", req_id, result is not None)
     if result and isinstance(result, dict):
         reply = result.get("reply", "")
         actions = result.get("actions", [])
+        logger.info("[CHAT:%s] actions_from_ai=%s", req_id, [a.get("type") for a in actions])
         if not reply:
             reply = "완료했습니다."
     else:
+        logger.warning("[CHAT:%s] JSON parse failed, raw=%r", req_id, raw[:300])
         reply = raw or "죄송합니다, 응답을 처리하는 중 오류가 발생했습니다."
         actions = []
 
     # 액션 실행
     executed = []
     for action in actions:
+        logger.info("[CHAT:%s] executing action type=%s", req_id, action.get("type"))
         try:
             if action.get("type") == "create_task":
                 project = Project.objects.get(id=action["project_id"], workspace=workspace)
@@ -493,7 +516,8 @@ def chat(request, workspace_slug: str):
         except Exception:
             pass
 
-    return Response({"reply": reply, "actions": executed, "model": model_label})
+    logger.info("[CHAT:%s] executed=%s model=%s", req_id, [a.get("type") for a in executed], model_label)
+    return Response({"reply": reply, "actions": executed, "model": model_label, "req_id": req_id})
 
 
 @api_view(["GET"])

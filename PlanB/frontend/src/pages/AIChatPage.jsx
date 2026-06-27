@@ -80,6 +80,7 @@ export default function AIChatPage() {
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const textareaRef = useRef(null)
+  const sendingRef = useRef(false)  // guards against double-send
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
@@ -87,7 +88,8 @@ export default function AIChatPage() {
 
   const send = async (text) => {
     const msg = (text !== undefined ? text : input).trim()
-    if (!msg || loading) return
+    if (!msg || loading || sendingRef.current) return
+    sendingRef.current = true
     setInput('')
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     setMessages(prev => [...prev,
@@ -111,6 +113,7 @@ export default function AIChatPage() {
       })
     } finally {
       setLoading(false)
+      sendingRef.current = false
       inputRef.current?.focus()
     }
   }
