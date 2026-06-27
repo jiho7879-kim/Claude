@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import datetime
 
 from rest_framework.decorators import api_view, permission_classes
@@ -18,7 +19,7 @@ _GEMINI_MODELS = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b"]
 _GROQ_MODELS = ["llama-3.3-70b-versatile", "llama3-8b-8192"]
 
 
-def _try_gemini(prompt: str, system: str) -> str:
+def _try_gemini(prompt: str, system: str) -> tuple[str, str]:
     api_key = os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
         raise ValueError("GEMINI_API_KEY 없음")
@@ -36,7 +37,7 @@ def _try_gemini(prompt: str, system: str) -> str:
                 contents=prompt,
                 config=types.GenerateContentConfig(system_instruction=system),
             )
-            return response.text
+            return response.text, model_name
         except Exception as e:
             last_exc = e
             if "429" not in str(e) and "404" not in str(e):
@@ -44,7 +45,7 @@ def _try_gemini(prompt: str, system: str) -> str:
     raise last_exc
 
 
-def _try_groq(prompt: str, system: str) -> str:
+def _try_groq(prompt: str, system: str) -> tuple[str, str]:
     api_key = os.environ.get("GROQ_API_KEY", "")
     if not api_key:
         raise ValueError("GROQ_API_KEY 없음")
@@ -62,30 +63,58 @@ def _try_groq(prompt: str, system: str) -> str:
                     {"role": "system", "content": system},
                     {"role": "user", "content": prompt},
                 ],
-                temperature=0.7,
+                temperature=0.3,
+                response_format={"type": "json_object"},
             )
-            return resp.choices[0].message.content
+            return resp.choices[0].message.content, model_name
         except Exception as e:
             last_exc = e
-            if "429" not in str(e) and "404" not in str(e) and "model_not_found" not in str(e):
+            err_str = str(e)
+            if "429" not in err_str and "404" not in err_str and "model_not_found" not in err_str:
                 raise
     raise last_exc
 
 
-def _gemini(prompt: str, system: str = "") -> str:
+def _gemini(prompt: str, system: str = "") -> tuple[str, str]:
+    """Returns (text, model_label). model_label e.g. 'Gemini 2.0 Flash' or 'Groq LLaMA 3.3'."""
     system_text = system or "당신은 친절한 프로젝트 관리 어시스턴트입니다. 항상 한국어로 답변하세요."
     errors = []
-    # 1순위: Gemini
     try:
-        return _try_gemini(prompt, system_text)
+        text, model = _try_gemini(prompt, system_text)
+        label = model.replace("gemini-", "Gemini ").replace("-", " ").title()
+        return text, label
     except Exception as e:
         errors.append(f"Gemini: {str(e)[:80]}")
-    # 2순위: Groq (자동 전환)
     try:
-        return _try_groq(prompt, system_text)
+        text, model = _try_groq(prompt, system_text)
+        label = "Groq " + model.split("-")[0].capitalize()
+        return text, label
     except Exception as e:
         errors.append(f"Groq: {str(e)[:80]}")
     raise RuntimeError(" | ".join(errors))
+
+
+def _extract_json(raw: str) -> dict | None:
+    """Robustly extract a JSON object from raw LLM output."""
+    text = raw.strip()
+    # Strip markdown code fences
+    if text.startswith("```"):
+        text = re.sub(r'^```(?:json)?\s*', '', text)
+        text = re.sub(r'\s*```\s*$', '', text)
+        text = text.strip()
+    # Try direct parse
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+    # Find the first complete {...} block
+    match = re.search(r'\{[\s\S]*\}', text)
+    if match:
+        try:
+            return json.loads(match.group())
+        except Exception:
+            pass
+    return None
 
 
 @api_view(["POST"])
@@ -100,7 +129,7 @@ def nl_task(request, workspace_slug: str):
         "into a structured task. Respond ONLY with valid JSON:\n"
         '{"title":"<title>","priority":"urgent|high|medium|low","due_date":"YYYY-MM-DD or null","notes":""}'
     )
-    raw = _gemini(text, system)
+    raw, _ = _gemini(text, system)
     try:
         parsed = json.loads(raw)
     except Exception:
@@ -123,7 +152,7 @@ def epic_breakdown(request, workspace_slug: str, project_id: str):
         '[{"title":"<task title>","priority":"urgent|high|medium|low","notes":""}]'
     )
     prompt = f"Epic: {title}\n{('Description: ' + description) if description else ''}"
-    raw = _gemini(prompt, system)
+    raw, _ = _gemini(prompt, system)
 
     try:
         tasks = json.loads(raw)
@@ -166,7 +195,7 @@ def weekly_summary(request, workspace_slug: str):
         "3-4문장으로 동기부여가 되는 주간 요약을 한국어로 작성해주세요."
     )
 
-    summary = _gemini(prompt)
+    summary, _ = _gemini(prompt)
     if not summary:
         pct = round(done / total * 100) if total > 0 else 0
         summary = (
@@ -290,14 +319,40 @@ PlanB는 다음 5가지 핵심 기능을 가진 프로젝트 관리 앱입니다
 - **"OOO 노트 정리해줘"** 요청 시: 컨텍스트 [노트] 섹션에서 해당 노트 ID를 찾아 update_note 사용
 - update_note에서도 content는 반드시 구조화된 전체 내용으로 채울 것
 
+## 날짜·시간 변환 규칙 (반드시 준수)
+컨텍스트 첫 줄 "오늘 날짜: YYYY-MM-DD (Weekday)"를 기준으로 절대 날짜를 계산한다.
+
+**요일 번호**: 월=1, 화=2, 수=3, 목=4, 금=5, 토=6, 일=7 (ISO 기준, 월요일 시작)
+
+**날짜 표현 변환 예시** (오늘이 2026-06-27 Saturday 기준):
+- "오늘" → 2026-06-27
+- "내일" → 2026-06-28
+- "이번주 월요일" → 2026-06-22 (이미 지난 경우 그냥 계산)
+- "다음주 월요일" → 2026-06-29 (다음 주 첫 번째 날)
+- "다음주 수요일" → 2026-07-01
+- "다음주 금요일" → 2026-07-03
+- 오늘이 토요일이면: 다음 월요일 = 오늘+2일, 다음 주 월요일 = 오늘+9일
+
+**계산 방법**:
+1. 오늘 요일의 ISO 번호 파악 (월=1…일=7)
+2. "다음주 N요일": (7 - 오늘요일번호 + N요일번호) % 7 + 7 일 후 (최소 7일 후)
+3. 단, "다음주 월요일" 표현은 한국에서 보통 "다음 주 첫 번째 월요일"을 의미
+4. 오늘이 토요일(6)이면: 다음주 월요일(1) = 오늘 + (7-6+1) = 오늘 + 2일
+
+**시간 표현**:
+- "18시30분", "오후 6시 30분" → "18:30"
+- "오전 9시" → "09:00"
+- "정오" → "12:00"
+- 종료 시간 명시 없으면: 시작 시간 + 1시간
+
 ## 일반 규칙
 - actions가 없으면 반드시 []
 - 프로젝트 언급 없이 태스크 추가 요청 시: 첫 번째 프로젝트 사용
 - 시간 언급 없는 플래너 항목: start_time/end_time null
-- "오늘", "지금", "내일" 등 상대적 날짜는 컨텍스트의 오늘 날짜 기준으로 계산
-- 카테고리 추론: 업무/회의/개발 → work, 운동/건강 → health, 독서/공부 → learning, 개인 용무 → personal
+- 카테고리 추론: 업무/회의/개발 → work, 운동/건강 → health, 독서/공부 → learning, 개인 용무 → personal, 학습/연수/세미나 → learning
 - 노트 검색: 컨텍스트의 [노트] 섹션에서 제목·내용 전체 탐색 후 관련 내용 인용해서 답변
 - 조회 요청은 컨텍스트 데이터를 정확히 참조해서 답변 (없으면 "없다"고 정직하게)
+- **응답은 반드시 유효한 JSON 하나만 출력. 추가 텍스트 절대 금지.**
 """
 
 
@@ -331,27 +386,23 @@ def chat(request, workspace_slug: str):
 사용자: {message}"""
 
     try:
-        raw = _gemini(prompt, CHAT_SYSTEM)
+        raw, model_label = _gemini(prompt, CHAT_SYSTEM)
     except ValueError as e:
-        return Response({"reply": str(e), "actions": []})
+        return Response({"reply": str(e), "actions": [], "model": None})
     except Exception as e:
         err = str(e)
         if "429" in err:
-            return Response({"reply": "⚠️ Gemini API 무료 쿼터를 초과했습니다.\n\n**해결 방법:**\n1. aistudio.google.com → API 키 발급 (AI Studio 전용 키 사용)\n2. 또는 잠시 후 다시 시도해주세요 (분당 제한 초과 시 1분 대기)", "actions": []})
-        return Response({"reply": f"Gemini API 오류: {err}", "actions": []})
+            return Response({"reply": "⚠️ Gemini API 무료 쿼터를 초과했습니다.\n\n**해결 방법:**\n1. aistudio.google.com → API 키 발급 (AI Studio 전용 키 사용)\n2. 또는 잠시 후 다시 시도해주세요 (분당 제한 초과 시 1분 대기)", "actions": [], "model": None})
+        return Response({"reply": f"AI 오류: {err}", "actions": [], "model": None})
 
-    # JSON 파싱 시도
-    try:
-        # 코드블록 제거
-        clean = raw.strip()
-        if clean.startswith("```"):
-            clean = clean.split("```")[1]
-            if clean.startswith("json"):
-                clean = clean[4:]
-        result = json.loads(clean.strip())
-        reply = result.get("reply", raw)
+    # 견고한 JSON 파싱
+    result = _extract_json(raw)
+    if result and isinstance(result, dict):
+        reply = result.get("reply", "")
         actions = result.get("actions", [])
-    except Exception:
+        if not reply:
+            reply = "완료했습니다."
+    else:
         reply = raw or "죄송합니다, 응답을 처리하는 중 오류가 발생했습니다."
         actions = []
 
@@ -442,7 +493,7 @@ def chat(request, workspace_slug: str):
         except Exception:
             pass
 
-    return Response({"reply": reply, "actions": executed})
+    return Response({"reply": reply, "actions": executed, "model": model_label})
 
 
 @api_view(["GET"])
@@ -466,7 +517,7 @@ def daily_insight(request, workspace_slug: str):
     prompt = f"=== 워크스페이스 현황 ===\n{context_text}\n\n오늘의 인사이트 3가지를 작성하세요."
 
     try:
-        insight = _gemini(prompt, system)
+        insight, _ = _gemini(prompt, system)
     except Exception as e:
         insight = None
 
@@ -510,7 +561,7 @@ def note_ai_action(request, workspace_slug, note_id):
     prompt = f"제목: {note.title or '제목 없음'}\n\n내용:\n{note.content or '(내용 없음)'}"
 
     try:
-        result = _gemini(prompt, system)
+        result, _ = _gemini(prompt, system)
     except Exception as e:
         return Response({"error": str(e)}, status=500)
 

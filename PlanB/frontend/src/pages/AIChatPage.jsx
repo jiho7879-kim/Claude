@@ -23,6 +23,17 @@ function ActionBadge({ action }) {
   )
 }
 
+function ModelBadge({ model }) {
+  if (!model) return null
+  const isGroq = model.toLowerCase().includes('groq') || model.toLowerCase().includes('llama')
+  return (
+    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 3 }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: isGroq ? '#f59e0b' : '#10b981', display: 'inline-block' }} />
+      {model}
+    </div>
+  )
+}
+
 function Message({ msg }) {
   const isUser = msg.role === 'user'
   return (
@@ -53,6 +64,7 @@ function Message({ msg }) {
           {msg.actions.map((a, i) => <ActionBadge key={i} action={a} />)}
         </div>
       )}
+      {!isUser && !msg.loading && msg.model && <ModelBadge model={msg.model} />}
     </div>
   )
 }
@@ -87,7 +99,7 @@ export default function AIChatPage() {
       const data = await aiChat(slug, msg, history)
       setMessages(prev => {
         const next = [...prev]
-        next[next.length - 1] = { role: 'assistant', content: data.reply, actions: data.actions || [] }
+        next[next.length - 1] = { role: 'assistant', content: data.reply, actions: data.actions || [], model: data.model }
         return next
       })
     } catch (err) {

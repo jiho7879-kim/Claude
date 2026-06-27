@@ -17,6 +17,17 @@ const ACTION_ICONS = {
   create_event: '📅',
 }
 
+function ModelBadge({ model }) {
+  if (!model) return null
+  const isGroq = model.toLowerCase().includes('groq') || model.toLowerCase().includes('llama')
+  return (
+    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 3 }}>
+      <span style={{ width: 5, height: 5, borderRadius: '50%', background: isGroq ? '#f59e0b' : '#10b981', display: 'inline-block' }} />
+      {model}
+    </div>
+  )
+}
+
 function Message({ msg }) {
   const isUser = msg.role === 'user'
   return (
@@ -55,6 +66,7 @@ function Message({ msg }) {
           ))}
         </div>
       )}
+      {!isUser && !msg.loading && msg.model && <ModelBadge model={msg.model} />}
     </div>
   )
 }
@@ -67,6 +79,7 @@ export default function AIChatDrawer({ open, onClose }) {
   }])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [lastModel, setLastModel] = useState(null)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
 
@@ -93,9 +106,10 @@ export default function AIChatDrawer({ open, onClose }) {
       const data = await aiChat(slug, msg, history)
       setMessages(prev => {
         const next = [...prev]
-        next[next.length - 1] = { role: 'assistant', content: data.reply, actions: data.actions || [] }
+        next[next.length - 1] = { role: 'assistant', content: data.reply, actions: data.actions || [], model: data.model }
         return next
       })
+      if (data.model) setLastModel(data.model)
     } catch (err) {
       const detail = err?.response?.data?.reply || err?.response?.data?.detail || err?.message || '오류 발생'
       setMessages(prev => {
@@ -130,7 +144,14 @@ export default function AIChatDrawer({ open, onClose }) {
           <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17 }}>🤖</div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>AI 비서</div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Gemini · 워크스페이스 연동</div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 3 }}>
+              {lastModel ? (
+                <>
+                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: lastModel.toLowerCase().includes('groq') ? '#f59e0b' : '#10b981', display: 'inline-block' }} />
+                  {lastModel}
+                </>
+              ) : 'AI · 워크스페이스 연동'}
+            </div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-muted)', padding: 4, lineHeight: 1 }}>✕</button>
         </div>
