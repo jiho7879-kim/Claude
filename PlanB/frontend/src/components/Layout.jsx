@@ -1,14 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams, NavLink } from 'react-router-dom'
+import { useParams, NavLink, useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import NotificationCenter from './NotificationCenter'
 import ToastContainer from './ui/Toast'
+import AIChatDrawer from './AIChatDrawer'
 import { getProjects, getTasks } from '../lib/workspaceApi'
 import useProjectStore from '../store/projectStore'
 import useNotificationStore from '../store/notificationStore'
 
 export default function Layout({ children }) {
   const { slug } = useParams()
+  const location = useLocation()
   const { projects, setProjects } = useProjectStore()
   const addNotif = useNotificationStore(s => s.add)
   const clearNotif = useNotificationStore(s => s.clear)
@@ -17,6 +19,10 @@ export default function Layout({ children }) {
     try { return localStorage.getItem('sidebar-collapsed') === 'true' } catch { return false }
   })
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [aiOpen, setAiOpen] = useState(false)
+
+  // AI 전용 페이지에서는 플로팅 버튼 숨김
+  const isAIPage = location.pathname.includes('/assistant')
 
   useEffect(() => {
     if (!slug) return
@@ -96,6 +102,28 @@ export default function Layout({ children }) {
 
         {children}
       </div>
+
+      {/* 플로팅 AI 버튼 */}
+      {slug && !isAIPage && (
+        <button
+          onClick={() => setAiOpen(true)}
+          title="AI 비서 열기"
+          style={{
+            position: 'fixed', bottom: 80, right: 20, width: 48, height: 48,
+            borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+            border: 'none', cursor: 'pointer', fontSize: 22,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 4px 16px rgba(99,102,241,0.45)',
+            zIndex: 990, transition: 'transform 0.15s, box-shadow 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(99,102,241,0.55)' }}
+          onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(99,102,241,0.45)' }}
+        >
+          🤖
+        </button>
+      )}
+
+      <AIChatDrawer open={aiOpen} onClose={() => setAiOpen(false)} />
 
       {slug && (
         <nav className="mobile-bottom-nav">

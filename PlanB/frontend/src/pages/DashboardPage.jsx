@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { getProjects, getTasks, getEvents, getSprints, getSprintStats, updateTask } from '../lib/workspaceApi'
 import { getBlocks, patchBlock } from '../lib/plannerApi'
+import { dailyInsight } from '../lib/aiApi'
 import useAuthStore from '../store/authStore'
 import useToastStore from '../store/toastStore'
 import { useCountUp } from '../hooks/useCountUp'
@@ -10,6 +11,50 @@ import { Skeleton } from '../components/ui/Skeleton'
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
 const MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
+
+function AIInsightCard({ slug }) {
+  const [insight, setInsight] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [open, setOpen] = useState(true)
+
+  const fetchInsight = () => {
+    setLoading(true)
+    dailyInsight(slug).then(data => setInsight(data.insight || null)).catch(() => {}).finally(() => setLoading(false))
+  }
+
+  if (!open) return null
+
+  return (
+    <div style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.06) 100%)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 12, padding: '14px 18px', marginBottom: 16, position: 'relative' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: insight || loading ? 10 : 0 }}>
+        <span style={{ fontSize: 16 }}>🤖</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>오늘의 AI 인사이트</span>
+        {!insight && !loading && (
+          <button onClick={fetchInsight} style={{ marginLeft: 'auto', padding: '4px 12px', background: 'var(--accent)', border: 'none', borderRadius: 6, color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+            분석하기
+          </button>
+        )}
+        {(insight || loading) && (
+          <button onClick={fetchInsight} disabled={loading} style={{ marginLeft: 'auto', padding: '3px 8px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 5, color: 'var(--text-muted)', fontSize: 10, cursor: loading ? 'default' : 'pointer' }}>
+            {loading ? '분석 중...' : '새로고침'}
+          </button>
+        )}
+        <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14, lineHeight: 1, padding: 2, marginLeft: insight || loading ? 0 : 4 }}>✕</button>
+      </div>
+      {loading && (
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>AI가 워크스페이스를 분석하고 있습니다...</div>
+      )}
+      {insight && !loading && (
+        <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.75, whiteSpace: 'pre-line' }}>
+          {insight}
+        </div>
+      )}
+      {!insight && !loading && (
+        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>버튼을 눌러 오늘의 워크스페이스 인사이트를 받아보세요.</div>
+      )}
+    </div>
+  )
+}
 
 const todayMidnight = () => { const d = new Date(); d.setHours(0,0,0,0); return d }
 const endOfDay = (d) => { const e = new Date(d); e.setHours(23,59,59,999); return e }
@@ -589,6 +634,7 @@ export default function DashboardPage() {
 
   return (
     <div className="app-content">
+      <AIInsightCard slug={slug} />
       <HeroCard myTasks={myTasks} events={events} user={user} slug={slug} />
 
       <div className="dashboard-grid" style={{ display: 'grid', gridTemplateColumns: '300px 1fr 240px', gap: 16, marginBottom: 16 }}>

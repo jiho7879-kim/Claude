@@ -256,7 +256,9 @@ PlanB는 다음 5가지 핵심 기능을 가진 프로젝트 관리 앱입니다
 | "플래너에 OOO 등록해줘" / "오늘 할 일에 OOO 추가" / "오늘 플래너에 OOO" | create_time_block |
 | "캘린더에 OOO 일정 잡아줘" / "OOO 일정 등록해줘" / "OO월 OO일 OOO" | create_event |
 | "OOO 프로젝트에 태스크 추가" / "OOO 업무 등록해줘" / "태스크 만들어줘" | create_task |
-| "노트에 OOO 적어줘" / "메모해줘: OOO" / "OOO 노트 저장해줘" | create_note |
+| "노트에 OOO 적어줘" / "메모해줘: OOO" / "OOO 노트 저장해줘" | create_note (내용 있는 경우) |
+| "OOO 초안 작성해줘" / "OOO 노트 내용 써줘" / "OOO에 대해 정리해서 노트 만들어줘" / "OOO 노트 만들어줘" | create_note (AI가 내용 직접 작성) |
+| "OOO 노트 정리해줘" / "OOO 노트 구조화해줘" / "OOO 노트 업데이트해줘" / "OOO 노트 수정해줘" | update_note |
 | "OOO 노트 찾아줘" / "OOO 관련 노트 있어?" / "OOO 메모 뭐라고 했지?" | 노트 컨텍스트 검색 후 reply만 |
 | "OOO 언제 마감이야?" / "진행 중인 태스크 알려줘" / "OOO 일정 있어?" | 조회 후 reply만 |
 
@@ -274,10 +276,21 @@ PlanB는 다음 5가지 핵심 기능을 가진 프로젝트 관리 앱입니다
 ### create_event (캘린더 일정)
 {"type": "create_event", "title": "일정 제목", "start_at": "YYYY-MM-DDTHH:MM:00", "end_at": "YYYY-MM-DDTHH:MM:00", "description": ""}
 
-### create_note (노트 저장)
-{"type": "create_note", "title": "노트 제목(첫 줄)", "content": "전체 내용", "tags": ["태그1", "태그2"]}
+### create_note (노트 생성 - 내용 포함 필수)
+{"type": "create_note", "title": "노트 제목", "content": "마크다운 형식의 상세한 노트 내용 (절대 비워두지 말 것)", "tags": ["태그1", "태그2"]}
 
-## 규칙
+### update_note (기존 노트 수정/정리)
+{"type": "update_note", "note_id": "<UUID>", "title": "노트 제목", "content": "마크다운 형식으로 구조화된 전체 내용", "tags": ["태그1", "태그2"]}
+
+## 노트 작성 규칙 (매우 중요)
+- **"초안 작성", "노트 만들어줘", "내용 써줘", "정리해줘"** 등의 요청은 반드시 create_note 액션을 사용하고 content 필드를 실제 내용으로 채울 것
+- content 필드는 절대 빈 문자열("")로 두지 말 것. 예: 제목이 "카레만들기"라면 카레 레시피 전체를 content에 작성
+- 노트 content는 마크다운 형식으로 작성: 섹션 제목(##), 목록(-), 강조(**) 등 적극 활용
+- 주제에 맞는 구체적이고 실용적인 내용을 충분히(최소 300자 이상) 작성할 것
+- **"OOO 노트 정리해줘"** 요청 시: 컨텍스트 [노트] 섹션에서 해당 노트 ID를 찾아 update_note 사용
+- update_note에서도 content는 반드시 구조화된 전체 내용으로 채울 것
+
+## 일반 규칙
 - actions가 없으면 반드시 []
 - 프로젝트 언급 없이 태스크 추가 요청 시: 첫 번째 프로젝트 사용
 - 시간 언급 없는 플래너 항목: start_time/end_time null
@@ -407,7 +420,112 @@ def chat(request, workspace_slug: str):
                     "label": f"일정 등록됨: {event.title} ({event.start_at.strftime('%m/%d %H:%M')})",
                     "id": event.id,
                 })
+            elif action.get("type") == "update_note":
+                try:
+                    note = Note.objects.get(
+                        id=action["note_id"], workspace=workspace, user=request.user
+                    )
+                    if action.get("title"):
+                        note.title = action["title"]
+                    if action.get("content"):
+                        note.content = action["content"]
+                    if action.get("tags") is not None:
+                        note.tags = action["tags"]
+                    note.save()
+                    executed.append({
+                        "type": "update_note",
+                        "label": f"노트 수정됨: {note.title or '제목 없음'}",
+                        "id": str(note.id),
+                    })
+                except Note.DoesNotExist:
+                    pass
         except Exception:
             pass
 
     return Response({"reply": reply, "actions": executed})
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def daily_insight(request, workspace_slug: str):
+    try:
+        workspace = Workspace.objects.get(slug=workspace_slug, members__user=request.user)
+    except Workspace.DoesNotExist:
+        return Response({"error": "workspace not found"}, status=404)
+
+    context_text, _ = _build_workspace_context(workspace, request.user)
+
+    system = (
+        "당신은 생산성 코치입니다. 워크스페이스 데이터를 분석하여 오늘의 핵심 인사이트 3가지를 작성하세요.\n"
+        "각 인사이트는 한 줄씩, 이모지로 시작하세요. 예:\n"
+        "🚨 마감 임박: ...\n"
+        "💡 추천: ...\n"
+        "📈 현황: ...\n"
+        "JSON 없이 순수 텍스트로 3줄만 출력하세요."
+    )
+    prompt = f"=== 워크스페이스 현황 ===\n{context_text}\n\n오늘의 인사이트 3가지를 작성하세요."
+
+    try:
+        insight = _gemini(prompt, system)
+    except Exception as e:
+        insight = None
+
+    return Response({"insight": insight})
+
+
+NOTE_AI_SYSTEMS = {
+    "organize": (
+        "당신은 노트 정리 전문가입니다. 입력된 노트 내용을 마크다운 형식으로 구조화하세요.\n"
+        "## 섹션 제목, - 목록, **강조** 등을 활용해 읽기 좋게 정리하세요.\n"
+        "정리된 내용만 출력하고 다른 설명은 하지 마세요."
+    ),
+    "expand": (
+        "당신은 창의적인 글쓰기 보조입니다. 입력된 노트 내용을 기반으로 더 풍부하고 상세한 내용을 추가하세요.\n"
+        "기존 내용을 유지하면서 추가 정보, 예시, 관련 내용을 덧붙여 확장하세요.\n"
+        "마크다운 형식으로 작성하고 확장된 전체 내용만 출력하세요."
+    ),
+    "suggest_tags": (
+        "당신은 태그 추천 전문가입니다. 노트 내용을 분석하여 적절한 태그를 추천하세요.\n"
+        "JSON 배열 형식으로만 응답하세요: [\"태그1\", \"태그2\", \"태그3\"]\n"
+        "태그는 짧고 명확하게, 최대 5개까지만 추천하세요."
+    ),
+}
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def note_ai_action(request, workspace_slug, note_id):
+    try:
+        workspace = Workspace.objects.get(slug=workspace_slug, members__user=request.user)
+    except Workspace.DoesNotExist:
+        return Response({"error": "workspace not found"}, status=404)
+
+    try:
+        note = Note.objects.get(id=note_id, workspace=workspace, user=request.user)
+    except Note.DoesNotExist:
+        return Response({"error": "note not found"}, status=404)
+
+    action = request.data.get("action", "organize")
+    system = NOTE_AI_SYSTEMS.get(action, NOTE_AI_SYSTEMS["organize"])
+    prompt = f"제목: {note.title or '제목 없음'}\n\n내용:\n{note.content or '(내용 없음)'}"
+
+    try:
+        result = _gemini(prompt, system)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
+
+    if action == "suggest_tags":
+        try:
+            clean = result.strip()
+            if clean.startswith("```"):
+                clean = clean.split("```")[1]
+                if clean.startswith("json"):
+                    clean = clean[4:]
+            tags = json.loads(clean.strip())
+            if not isinstance(tags, list):
+                raise ValueError
+        except Exception:
+            tags = []
+        return Response({"tags": tags})
+
+    return Response({"content": result})

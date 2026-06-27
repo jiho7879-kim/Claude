@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { getNotes, createNote, updateNote, deleteNote } from '../lib/notesApi'
+import { noteAiAction } from '../lib/aiApi'
 
 const SAVE_DELAY = 800
 
@@ -19,6 +20,106 @@ function extractTitle(content) {
   return first.replace(/^#+\s*/, '').slice(0, 60) || '제목 없음'
 }
 
+const AI_ACTIONS = [
+  { key: 'organize', label: '✨ AI 구조화', desc: '마크다운 형식으로 정리' },
+  { key: 'expand', label: '📝 이어서 작성', desc: '내용 확장 및 보완' },
+  { key: 'suggest_tags', label: '🏷️ 태그 추천', desc: '관련 태그 자동 추천' },
+]
+
+function NoteAIPanel({ note, slug, onApply }) {
+  const [loading, setLoading] = useState(null)
+  const [result, setResult] = useState(null)
+  const [error, setError] = useState(null)
+
+  const run = async (action) => {
+    setLoading(action)
+    setResult(null)
+    setError(null)
+    try {
+      const data = await noteAiAction(slug, note.id, action)
+      setResult({ action, data })
+    } catch (e) {
+      setError(e?.response?.data?.error || 'AI 오류가 발생했습니다')
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  const apply = () => {
+    if (!result) return
+    if (result.action === 'suggest_tags') {
+      onApply({ tags: result.data.tags })
+    } else {
+      onApply({ content: result.data.content })
+    }
+    setResult(null)
+  }
+
+  return (
+    <div style={{
+      width: 240, flexShrink: 0, borderLeft: '1px solid var(--border)',
+      background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column',
+      padding: '14px 12px',
+    }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+        🤖 AI 노트 도우미
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {AI_ACTIONS.map(a => (
+          <button
+            key={a.key}
+            onClick={() => run(a.key)}
+            disabled={!!loading}
+            style={{
+              padding: '8px 10px', background: loading === a.key ? 'var(--accent-muted)' : 'var(--bg-elevated)',
+              border: `1px solid ${loading === a.key ? 'var(--border-focus)' : 'var(--border)'}`,
+              borderRadius: 8, cursor: loading ? 'default' : 'pointer',
+              textAlign: 'left', opacity: loading && loading !== a.key ? 0.5 : 1,
+            }}
+          >
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
+              {loading === a.key ? '⏳ 처리 중...' : a.label}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{a.desc}</div>
+          </button>
+        ))}
+      </div>
+
+      {error && (
+        <div style={{ marginTop: 10, padding: '8px 10px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, fontSize: 11, color: '#ef4444' }}>
+          {error}
+        </div>
+      )}
+
+      {result && (
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>AI 결과 미리보기</div>
+          <div style={{
+            padding: '8px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+            borderRadius: 6, fontSize: 11, color: 'var(--text-secondary)',
+            maxHeight: 180, overflowY: 'auto', lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+          }}>
+            {result.action === 'suggest_tags'
+              ? (result.data.tags || []).map(t => `#${t}`).join('  ')
+              : (result.data.content || '').slice(0, 400) + ((result.data.content || '').length > 400 ? '...' : '')}
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+            <button onClick={apply} style={{
+              flex: 1, padding: '6px 0', background: 'var(--accent)', border: 'none',
+              borderRadius: 6, color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+            }}>적용</button>
+            <button onClick={() => setResult(null)} style={{
+              padding: '6px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+              borderRadius: 6, fontSize: 11, cursor: 'pointer', color: 'var(--text-muted)',
+            }}>취소</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function NotesPage() {
   const { slug } = useParams()
   const [notes, setNotes] = useState([])
@@ -26,6 +127,7 @@ export default function NotesPage() {
   const [search, setSearch] = useState('')
   const [saving, setSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
+  const [showAI, setShowAI] = useState(true)
   const saveTimer = useRef(null)
   const editorRef = useRef(null)
 
@@ -88,6 +190,27 @@ export default function NotesPage() {
     }))
     if (active?.id === updated.id) setActive(updated)
   }
+
+  const handleAIApply = useCallback(async ({ content, tags }) => {
+    if (!active) return
+    const patch = {}
+    if (content !== undefined) {
+      patch.content = content
+      patch.title = extractTitle(content)
+    }
+    if (tags !== undefined) patch.tags = tags
+
+    const updated = { ...active, ...patch }
+    setActive(updated)
+    setSaving(true)
+    try {
+      const saved = await updateNote(slug, active.id, patch)
+      setNotes(prev => prev.map(n => n.id === saved.id ? saved : n))
+      setActive(saved)
+    } finally {
+      setSaving(false)
+    }
+  }, [active, slug])
 
   const wordCount = active?.content
     ? active.content.trim().split(/\s+/).filter(Boolean).length
@@ -172,6 +295,18 @@ export default function NotesPage() {
               <span style={{ fontSize: 12, color: 'var(--text-muted)', flex: 1 }}>
                 {saving ? '저장 중...' : `저장됨 · ${wordCount}단어`}
               </span>
+              <button
+                onClick={() => setShowAI(v => !v)}
+                title="AI 도우미 토글"
+                style={{
+                  background: showAI ? 'rgba(99,102,241,0.12)' : 'var(--bg-elevated)',
+                  border: `1px solid ${showAI ? 'var(--border-focus)' : 'var(--border)'}`,
+                  borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 12,
+                  color: showAI ? 'var(--accent)' : 'var(--text-secondary)',
+                }}
+              >
+                🤖 AI
+              </button>
               <button onClick={() => handlePin(active)} title={active.is_pinned ? '고정 해제' : '고정'} style={{
                 background: active.is_pinned ? 'rgba(99,102,241,0.12)' : 'var(--bg-elevated)',
                 border: '1px solid var(--border)', borderRadius: 6,
@@ -186,18 +321,24 @@ export default function NotesPage() {
                 fontSize: 12, color: 'var(--text-muted)',
               }}>🗑</button>
             </div>
-            <textarea
-              ref={editorRef}
-              value={active.content}
-              onChange={handleContentChange}
-              placeholder={'# 제목\n\n자유롭게 작성하세요...\n\n태그: #업무 #아이디어'}
-              style={{
-                flex: 1, border: 'none', outline: 'none', resize: 'none',
-                padding: '28px 40px', fontSize: 15, lineHeight: 1.8,
-                fontFamily: '"Pretendard", "Apple SD Gothic Neo", monospace',
-                background: 'var(--bg-base)', color: 'var(--text-primary)',
-              }}
-            />
+
+            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+              <textarea
+                ref={editorRef}
+                value={active.content}
+                onChange={handleContentChange}
+                placeholder={'# 제목\n\n자유롭게 작성하세요...\n\n태그: #업무 #아이디어'}
+                style={{
+                  flex: 1, border: 'none', outline: 'none', resize: 'none',
+                  padding: '28px 40px', fontSize: 15, lineHeight: 1.8,
+                  fontFamily: '"Pretendard", "Apple SD Gothic Neo", monospace',
+                  background: 'var(--bg-base)', color: 'var(--text-primary)',
+                }}
+              />
+              {showAI && (
+                <NoteAIPanel note={active} slug={slug} onApply={handleAIApply} />
+              )}
+            </div>
           </>
         ) : (
           <div style={{

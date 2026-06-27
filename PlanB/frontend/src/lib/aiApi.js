@@ -11,3 +11,9 @@ export const weeklySummary = (slug) =>
 
 export const aiChat = (slug, message, history = []) =>
   api.post(`/api/workspaces/${slug}/ai/chat/`, { message, history }).then(r => r.data)
+
+export const noteAiAction = (slug, noteId, action) =>
+  api.post(`/api/workspaces/${slug}/ai/notes/${noteId}/action/`, { action }).then(r => r.data)
+
+export const dailyInsight = (slug) =>
+  api.get(`/api/workspaces/${slug}/ai/daily-insight/`).then(r => r.data)
