@@ -31,8 +31,9 @@ _GROQ_MODELS = ["llama-3.3-70b-versatile", "llama3-8b-8192"]
 
 
 def _try_gemini(prompt: str, system: str) -> tuple[str, str]:
-    api_key = os.environ.get("GEMINI_API_KEY", "")
-    logger.info("[GEMINI] API key present: %s", bool(api_key))
+    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    key_hint = (api_key[:6] + "..." + api_key[-4:]) if len(api_key) > 10 else "(short/empty)"
+    logger.info("[GEMINI] API key hint: %s (len=%d)", key_hint, len(api_key))
     if not api_key:
         raise ValueError("GEMINI_API_KEY 없음")
     try:
