@@ -300,6 +300,130 @@ export default function NotesPage() {
     } finally { setSaving(false) }
   }, [active, slug])
 
+  // ── 에디터 내용 직접 업데이트 (커서 위치 보존) ─────────────────────────
+  const applyToEditor = useCallback((newValue, newSS, newSE) => {
+    if (!active) return
+    const draft = { ...active, content: newValue, title: extractTitle(newValue) }
+    setActive(draft)
+    scheduleSave(draft)
+    requestAnimationFrame(() => {
+      const ta = editorRef.current
+      if (!ta) return
+      ta.value = newValue
+      ta.setSelectionRange(newSS ?? newValue.length, newSE ?? newSS ?? newValue.length)
+      ta.focus()
+    })
+  }, [active, scheduleSave])
+
+  // ── 포맷 툴바 버튼 핸들러 ───────────────────────────────────────────────
+  const applyFormat = useCallback((type) => {
+    const ta = editorRef.current
+    if (!ta) return
+    const { selectionStart: ss, selectionEnd: se, value } = ta
+    const selected = value.slice(ss, se)
+
+    // 줄 단위 포맷 (줄 앞에 prefix 토글)
+    const LINE_PREFIX = { h1: '# ', h2: '## ', h3: '### ', bullet: '- ', numbered: '1. ', checkbox: '- [ ] ', quote: '> ' }
+    if (LINE_PREFIX[type]) {
+      const prefix = LINE_PREFIX[type]
+      const lineStart = value.lastIndexOf('\n', ss - 1) + 1
+      const lineEnd = value.indexOf('\n', se)
+      const blockEnd = lineEnd === -1 ? value.length : lineEnd
+      const lines = value.slice(lineStart, blockEnd).split('\n')
+      const already = lines.every(l => l.startsWith(prefix))
+      const updated = lines.map(l => {
+        if (already) return l.startsWith(prefix) ? l.slice(prefix.length) : l
+        const clean = l.replace(/^(#{1,3} |> |- \[[ x]\] |- |\d+\. )/, '')
+        if (type === 'numbered') {
+          // 번호 자동 증가는 생략하고 1.로 통일 (Enter 시 자동 증가)
+        }
+        return prefix + clean
+      })
+      const newBlock = updated.join('\n')
+      const diff = newBlock.length - (blockEnd - lineStart)
+      const newValue = value.slice(0, lineStart) + newBlock + value.slice(blockEnd)
+      applyToEditor(newValue, ss + (updated[0].length - lines[0].length), se + diff)
+      return
+    }
+
+    // 인라인 포맷
+    if (type === 'bold') {
+      const newValue = selected
+        ? value.slice(0, ss) + `**${selected}**` + value.slice(se)
+        : value.slice(0, ss) + '****' + value.slice(se)
+      applyToEditor(newValue, selected ? ss : ss + 2, selected ? se + 4 : ss + 2)
+    } else if (type === 'italic') {
+      const newValue = selected
+        ? value.slice(0, ss) + `*${selected}*` + value.slice(se)
+        : value.slice(0, ss) + '**' + value.slice(se)
+      applyToEditor(newValue, selected ? ss : ss + 1, selected ? se + 2 : ss + 1)
+    } else if (type === 'strike') {
+      const newValue = selected
+        ? value.slice(0, ss) + `~~${selected}~~` + value.slice(se)
+        : value.slice(0, ss) + '~~~~' + value.slice(se)
+      applyToEditor(newValue, selected ? ss : ss + 2, selected ? se + 4 : ss + 2)
+    } else if (type === 'code') {
+      if (selected.includes('\n')) {
+        const newValue = value.slice(0, ss) + '```\n' + selected + '\n```' + value.slice(se)
+        applyToEditor(newValue, ss + 4, ss + 4 + selected.length)
+      } else {
+        const newValue = selected
+          ? value.slice(0, ss) + '`' + selected + '`' + value.slice(se)
+          : value.slice(0, ss) + '``' + value.slice(se)
+        applyToEditor(newValue, selected ? ss : ss + 1, selected ? se + 2 : ss + 1)
+      }
+    } else if (type === 'hr') {
+      const ins = '\n\n---\n\n'
+      applyToEditor(value.slice(0, ss) + ins + value.slice(se), ss + ins.length, ss + ins.length)
+    }
+  }, [applyToEditor])
+
+  // ── Tab / Enter 스마트 처리 ──────────────────────────────────────────────
+  const handleEditorKeyDown = useCallback((e) => {
+    const ta = e.target
+    const { selectionStart: ss, selectionEnd: se, value } = ta
+    const lineStart = value.lastIndexOf('\n', ss - 1) + 1
+    const currentLine = value.slice(lineStart, ss)
+
+    if (e.key === 'Tab') {
+      e.preventDefault()
+      if (e.shiftKey) {
+        // 내어쓰기: 줄 앞의 공백 2개 제거
+        if (value.slice(lineStart, lineStart + 2) === '  ') {
+          const nv = value.slice(0, lineStart) + value.slice(lineStart + 2)
+          applyToEditor(nv, Math.max(lineStart, ss - 2), Math.max(lineStart, se - 2))
+        }
+      } else {
+        // 들여쓰기: 커서 위치에 공백 2개 삽입
+        const nv = value.slice(0, ss) + '  ' + value.slice(se)
+        applyToEditor(nv, ss + 2, ss + 2)
+      }
+      return
+    }
+
+    if (e.key === 'Enter') {
+      // 리스트 자동 계속
+      const match = currentLine.match(/^(\s*)(- \[[ x]\] |- |\d+\. |> )/)
+      if (match) {
+        e.preventDefault()
+        const [, indent, prefix] = match
+        const content = currentLine.slice(indent.length + prefix.length).trim()
+        if (!content) {
+          // 빈 리스트 항목 → 리스트 종료 (prefix 제거)
+          const nv = value.slice(0, lineStart) + '\n' + value.slice(ss)
+          applyToEditor(nv, lineStart + 1, lineStart + 1)
+        } else {
+          // 다음 항목 계속
+          let nextPrefix = prefix
+          const numMatch = prefix.match(/^(\d+)\. $/)
+          if (numMatch) nextPrefix = `${parseInt(numMatch[1]) + 1}. `
+          const ins = '\n' + indent + nextPrefix
+          applyToEditor(value.slice(0, ss) + ins + value.slice(se), ss + ins.length, ss + ins.length)
+        }
+      }
+    }
+  }, [applyToEditor])
+
   // 폴더 CRUD
   const handleNewFolder = async (parentId = null) => {
     const name = prompt('폴더 이름을 입력하세요:')
@@ -505,13 +629,54 @@ export default function NotesPage() {
                   dangerouslySetInnerHTML={{ __html: renderMarkdown(active.content, notes, setActive) }}
                 />
               ) : (
-                <textarea
-                  ref={editorRef}
-                  value={active.content}
-                  onChange={handleContentChange}
-                  placeholder={'# 제목\n\n자유롭게 작성하세요...\n\n[[다른 노트 제목]] 으로 노트를 연결하세요\n\n태그: #업무 #아이디어'}
-                  style={{ flex: 1, border: 'none', outline: 'none', resize: 'none', padding: '28px 40px', fontSize: 15, lineHeight: 1.8, fontFamily: '"Pretendard", "Apple SD Gothic Neo", monospace', background: 'var(--bg-base)', color: 'var(--text-primary)' }}
-                />
+                <>
+                  {/* 포맷 툴바 */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 1, padding: '4px 14px', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)', flexShrink: 0, flexWrap: 'wrap' }}>
+                    {[
+                      { label: 'H1', type: 'h1', title: '제목 1 (# )' },
+                      { label: 'H2', type: 'h2', title: '제목 2 (## )' },
+                      { label: 'H3', type: 'h3', title: '제목 3 (### )' },
+                      null,
+                      { label: 'B', type: 'bold', title: '굵게 (**text**)', style: { fontWeight: 700 } },
+                      { label: 'I', type: 'italic', title: '기울임 (*text*)', style: { fontStyle: 'italic' } },
+                      { label: 'S', type: 'strike', title: '취소선 (~~text~~)', style: { textDecoration: 'line-through' } },
+                      null,
+                      { label: '•', type: 'bullet', title: '불릿 목록 (- )', style: { fontSize: 16 } },
+                      { label: '1.', type: 'numbered', title: '번호 목록 (1. )' },
+                      { label: '☐', type: 'checkbox', title: '체크박스 (- [ ] )' },
+                      null,
+                      { label: '❝', type: 'quote', title: '인용 (> )' },
+                      { label: '<>', type: 'code', title: '코드 (`code`)' },
+                      { label: '─', type: 'hr', title: '구분선 (---)' },
+                    ].map((btn, i) =>
+                      btn === null
+                        ? <div key={i} style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 3px' }} />
+                        : (
+                          <button
+                            key={btn.type}
+                            title={btn.title}
+                            onMouseDown={e => { e.preventDefault(); applyFormat(btn.type) }}
+                            style={{ padding: '3px 6px', minWidth: 26, background: 'none', border: '1px solid transparent', borderRadius: 4, fontSize: 11, cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'inherit', lineHeight: 1.4, ...btn.style }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-elevated)'; e.currentTarget.style.borderColor = 'var(--border)' }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.borderColor = 'transparent' }}
+                          >
+                            {btn.label}
+                          </button>
+                        )
+                    )}
+                    <div style={{ flex: 1 }} />
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.6 }}>Tab 들여쓰기 · Shift+Tab 내어쓰기</span>
+                  </div>
+                  <textarea
+                    ref={editorRef}
+                    value={active.content}
+                    onChange={handleContentChange}
+                    onKeyDown={handleEditorKeyDown}
+                    placeholder={'# 제목\n\n자유롭게 작성하세요...\n\n- 불릿 목록\n1. 번호 목록\n- [ ] 체크박스\n\n[[다른 노트 제목]] 으로 노트를 연결하세요'}
+                    style={{ flex: 1, border: 'none', outline: 'none', resize: 'none', padding: '24px 40px', fontSize: 15, lineHeight: 1.8, fontFamily: '"Pretendard", "Apple SD Gothic Neo", ui-monospace, monospace', background: 'var(--bg-base)', color: 'var(--text-primary)', tabSize: 2 }}
+                  />
+                </>
+              )
               )}
             </div>
 
