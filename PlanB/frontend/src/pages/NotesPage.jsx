@@ -676,7 +676,6 @@ export default function NotesPage() {
                     style={{ flex: 1, border: 'none', outline: 'none', resize: 'none', padding: '24px 40px', fontSize: 15, lineHeight: 1.8, fontFamily: '"Pretendard", "Apple SD Gothic Neo", ui-monospace, monospace', background: 'var(--bg-base)', color: 'var(--text-primary)', tabSize: 2 }}
                   />
                 </>
-              )
               )}
             </div>
 
