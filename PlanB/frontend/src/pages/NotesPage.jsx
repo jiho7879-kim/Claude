@@ -496,15 +496,15 @@ export default function NotesPage() {
       `}</style>
 
       {/* ─── 사이드바 ─── */}
-      <div style={{ width: 260, flexShrink: 0, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--bg-surface)', overflow: 'hidden' }}>
+      <div style={{ width: folderOpen ? 260 : 0, flexShrink: 0, borderRight: folderOpen ? '1px solid var(--border)' : 'none', display: 'flex', flexDirection: 'column', background: 'var(--bg-surface)', overflow: 'hidden', transition: 'width .25s ease' }}>
 
         {/* 상단: 검색 + 새 노트 버튼 */}
         <div style={{ padding: '12px 10px 8px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
             <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', flex: 1 }}>📝 노트</span>
-            <button onClick={() => setFolderOpen(v => !v)} title={folderOpen ? '폴더 패널 닫기' : '폴더 패널 열기'}
-              style={{ background: folderOpen ? 'var(--bg-elevated)' : 'color-mix(in srgb, var(--accent) 12%, var(--bg-elevated))', border: `1px solid ${folderOpen ? 'var(--border)' : 'color-mix(in srgb, var(--accent) 40%, var(--border))'}`, borderRadius: 5, color: folderOpen ? 'var(--text-muted)' : 'var(--accent)', fontSize: 11, width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .15s' }}>
-              {folderOpen ? '◂' : '▸'}
+            <button onClick={() => setFolderOpen(false)} title="사이드바 접기"
+              style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 5, color: 'var(--text-muted)', fontSize: 11, width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              ◂
             </button>
             <button onClick={() => handleNewFolder(null)} title="새 폴더" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 5, color: 'var(--text-muted)', fontSize: 13, width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📁</button>
             <button onClick={() => handleNew(selectedFolder && selectedFolder !== 'root' ? selectedFolder : null)} title="새 노트" style={{ background: 'var(--accent)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 16, width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>+</button>
@@ -521,7 +521,7 @@ export default function NotesPage() {
         <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
 
           {/* 전체 보기 */}
-          {!search && folderOpen && (
+          {!search && (
             <>
               <div
                 onClick={() => { setSelectedFolder(null); setSearch('') }}
@@ -588,6 +588,10 @@ export default function NotesPage() {
           <>
             {/* 툴바 */}
             <div style={{ padding: '7px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 7, background: 'var(--bg-surface)', flexShrink: 0, flexWrap: 'wrap' }}>
+              <button onClick={() => setFolderOpen(v => !v)} title={folderOpen ? '사이드바 접기' : '사이드바 펼치기'}
+                style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 5, color: folderOpen ? 'var(--text-muted)' : 'var(--accent)', fontSize: 12, width: 26, height: 26, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'color .15s' }}>
+                {folderOpen ? '◂' : '▸'}
+              </button>
               <span style={{ fontSize: 11, color: 'var(--text-muted)', flex: 1, minWidth: 60 }}>
                 {saving ? '저장 중...' : `저장됨 · ${wordCount}단어`}
               </span>
@@ -688,7 +692,14 @@ export default function NotesPage() {
             {showAI && <NoteAIPanel note={active} slug={slug} onApply={handleAIApply} />}
           </>
         ) : (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, color: 'var(--text-muted)' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '7px 14px', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)', flexShrink: 0 }}>
+              <button onClick={() => setFolderOpen(v => !v)} title={folderOpen ? '사이드바 접기' : '사이드바 펼치기'}
+                style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 5, color: folderOpen ? 'var(--text-muted)' : 'var(--accent)', fontSize: 12, width: 26, height: 26, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'color .15s' }}>
+                {folderOpen ? '◂' : '▸'}
+              </button>
+            </div>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, color: 'var(--text-muted)' }}>
             <div style={{ fontSize: 48 }}>📝</div>
             <div style={{ fontSize: 15, fontWeight: 600 }}>노트를 선택하거나 새로 만드세요</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.6 }}>
@@ -696,6 +707,7 @@ export default function NotesPage() {
               [[노트명]] 으로 노트끼리 연결하세요
             </div>
             <button onClick={() => handleNew()} style={{ padding: '8px 20px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>+ 새 노트</button>
+            </div>
           </div>
         )}
       </div>
