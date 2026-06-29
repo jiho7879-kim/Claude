@@ -101,6 +101,13 @@ export default function WeeklyPlannerPage() {
   const doneBlocks  = entries.reduce((s, e) => s + (e.time_blocks?.filter(b => b.is_done).length || 0), 0)
   const weekProgress = totalBlocks ? Math.round((doneBlocks / totalBlocks) * 100) : 0
 
+  // 이번 주 자동 분석
+  const moodCounts = entries.reduce((acc, e) => { if (e.mood) acc[e.mood] = (acc[e.mood] || 0) + 1; return acc }, {})
+  const journalCount = entries.filter(e => e.journal?.trim()).length
+  const energyEntries = entries.filter(e => e.energy != null)
+  const energyAvg = energyEntries.length ? (energyEntries.reduce((s, e) => s + e.energy, 0) / energyEntries.length).toFixed(1) : null
+  const mitColors = ['#6366f1', '#10b981', '#f59e0b']
+
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'var(--bg-base)', overflow:'hidden' }}>
 
@@ -253,6 +260,46 @@ export default function WeeklyPlannerPage() {
             </div>
           )}
 
+          {/* 이번 주 자동 요약 배너 */}
+          {entries.length > 0 && (
+            <div style={{ flexShrink:0, borderBottom:'1px solid var(--border)', background:'var(--bg-elevated)', padding:'8px 20px', display:'flex', gap:20, alignItems:'center', flexWrap:'wrap' }}>
+              <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', letterSpacing:1, textTransform:'uppercase', flexShrink:0 }}>이번 주 데이터</div>
+              {Object.entries(moodCounts).length > 0 && (
+                <div style={{ display:'flex', gap:5, alignItems:'center' }}>
+                  {['great','good','neutral','bad','awful'].filter(m => moodCounts[m]).map(mood => (
+                    <span key={mood} style={{ fontSize:12 }}>
+                      {MOODS[mood]}<sup style={{ fontSize:9, color:'var(--text-muted)' }}>×{moodCounts[mood]}</sup>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {totalBlocks > 0 && (
+                <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                  <span style={{ fontSize:10, color:'var(--text-muted)' }}>달성</span>
+                  <span style={{ fontSize:15, fontWeight:700, color: weekProgress>=80 ? '#10b981' : weekProgress>=50 ? '#f59e0b' : 'var(--accent)' }}>{weekProgress}%</span>
+                </div>
+              )}
+              {journalCount > 0 && (
+                <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                  <span style={{ fontSize:10, color:'var(--text-muted)' }}>📓 일기</span>
+                  <span style={{ fontSize:13, fontWeight:600, color:'var(--text-secondary)' }}>{journalCount}일</span>
+                </div>
+              )}
+              {energyAvg && (
+                <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                  <span style={{ fontSize:10, color:'var(--text-muted)' }}>⚡ 평균 에너지</span>
+                  <span style={{ fontSize:13, fontWeight:600, color:'var(--text-secondary)' }}>{energyAvg}/5</span>
+                </div>
+              )}
+              <div style={{ marginLeft:'auto', flexShrink:0 }}>
+                <button onClick={() => navigate(`/workspaces/${slug}/planner?date=${weekDates[0]}`)}
+                  style={{ padding:'3px 10px', background:'none', border:'1px solid var(--border)', borderRadius:6, fontSize:11, cursor:'pointer', color:'var(--text-secondary)' }}>
+                  일간 플래너 →
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Weekly Review Form */}
           <div style={{ flex:1, display:'grid', gridTemplateColumns:'1fr 1fr', overflow:'hidden' }}>
 
@@ -262,8 +309,12 @@ export default function WeeklyPlannerPage() {
                 <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', letterSpacing:1, textTransform:'uppercase' }}>주간 회고</div>
               </div>
               <div style={{ flex:1, overflowY:'auto', padding:20, display:'flex', flexDirection:'column', gap:16 }}>
-                <ReviewField label="✅ 잘 된 것" value={review.went_well || ''} onChange={v => handleReviewField('went_well', v)} placeholder="이번 주 잘 해낸 것, 자랑스러운 순간..." />
-                <ReviewField label="🔧 아쉬운 것 / 개선점" value={review.to_improve || ''} onChange={v => handleReviewField('to_improve', v)} placeholder="다음에는 다르게 해보고 싶은 것..." />
+                <ReviewField label="✅ 잘 된 것" value={review.went_well || ''} onChange={v => handleReviewField('went_well', v)}
+                  placeholder={totalBlocks > 0 && weekProgress >= 70
+                    ? `이번 주 ${weekProgress}% 달성! 어떤 점이 도움됐을까요?`
+                    : '이번 주 잘 해낸 것, 자랑스러운 순간...'} />
+                <ReviewField label="🔧 아쉬운 것 / 개선점" value={review.to_improve || ''} onChange={v => handleReviewField('to_improve', v)}
+                  placeholder="다음에는 다르게 해보고 싶은 것, 개선하고 싶은 점..." />
               </div>
             </div>
 
@@ -277,16 +328,21 @@ export default function WeeklyPlannerPage() {
                 <div>
                   <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', letterSpacing:1, textTransform:'uppercase', marginBottom:10 }}>⚡ MIT — 다음 주 핵심 3가지</div>
                   {[1,2,3].map(n => (
-                    <div key={n} style={{ display:'flex', alignItems:'center', gap:10, marginBottom:8 }}>
-                      <span style={{ fontSize:12, fontWeight:700, color:'var(--accent)', width:18, flexShrink:0 }}>{n}.</span>
+                    <div key={n} style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10, padding:'10px 14px', background: review[`mit${n}`] ? `color-mix(in srgb, ${mitColors[n-1]} 6%, var(--bg-elevated))` : 'var(--bg-elevated)', border:`1px solid ${review[`mit${n}`] ? `color-mix(in srgb, ${mitColors[n-1]} 35%, var(--border))` : 'var(--border)'}`, borderRadius:8, borderLeft:`4px solid ${mitColors[n-1]}`, transition:'all .2s' }}>
+                      <span style={{ fontSize:15, fontWeight:700, color:mitColors[n-1], width:20, flexShrink:0 }}>{n}</span>
                       <input
                         value={review[`mit${n}`] || ''}
                         onChange={e => handleReviewField(`mit${n}`, e.target.value)}
-                        placeholder={`MIT ${n}번째...`}
-                        style={{ flex:1, padding:'8px 12px', background:'var(--bg-elevated)', border:'1px solid var(--border)', borderRadius:'var(--r-sm)', color:'var(--text-primary)', fontSize:13, outline:'none' }}
+                        placeholder={['가장 중요한 목표...', '두 번째 핵심 목표...', '세 번째 핵심 목표...'][n-1]}
+                        style={{ flex:1, background:'transparent', border:'none', color:'var(--text-primary)', fontSize:14, outline:'none', fontWeight: review[`mit${n}`] ? 600 : 400 }}
                       />
                     </div>
                   ))}
+                  {isCurrentWeek && (
+                    <div style={{ fontSize:11, color:'var(--text-muted)', fontStyle:'italic', marginTop:4, padding:'6px 10px', background:'color-mix(in srgb, var(--accent) 4%, var(--bg-base))', borderRadius:6 }}>
+                      💡 일간 플래너에서 이번 주 MIT를 확인하며 하루를 계획하세요
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

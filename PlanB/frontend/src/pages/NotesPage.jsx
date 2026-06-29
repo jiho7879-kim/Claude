@@ -203,6 +203,7 @@ export default function NotesPage() {
   const [preview, setPreview] = useState(false)
   const [showAI, setShowAI] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
+  const [folderOpen, setFolderOpen] = useState(true)
   const saveTimer = useRef(null)
   const editorRef = useRef(null)
   const previewRef = useRef(null)
@@ -501,6 +502,10 @@ export default function NotesPage() {
         <div style={{ padding: '12px 10px 8px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
             <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', flex: 1 }}>📝 노트</span>
+            <button onClick={() => setFolderOpen(v => !v)} title={folderOpen ? '폴더 패널 닫기' : '폴더 패널 열기'}
+              style={{ background: folderOpen ? 'var(--bg-elevated)' : 'color-mix(in srgb, var(--accent) 12%, var(--bg-elevated))', border: `1px solid ${folderOpen ? 'var(--border)' : 'color-mix(in srgb, var(--accent) 40%, var(--border))'}`, borderRadius: 5, color: folderOpen ? 'var(--text-muted)' : 'var(--accent)', fontSize: 11, width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .15s' }}>
+              {folderOpen ? '◂' : '▸'}
+            </button>
             <button onClick={() => handleNewFolder(null)} title="새 폴더" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 5, color: 'var(--text-muted)', fontSize: 13, width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📁</button>
             <button onClick={() => handleNew(selectedFolder && selectedFolder !== 'root' ? selectedFolder : null)} title="새 노트" style={{ background: 'var(--accent)', border: 'none', borderRadius: 5, color: '#fff', fontSize: 16, width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>+</button>
           </div>
@@ -516,7 +521,7 @@ export default function NotesPage() {
         <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
 
           {/* 전체 보기 */}
-          {!search && (
+          {!search && folderOpen && (
             <>
               <div
                 onClick={() => { setSelectedFolder(null); setSearch('') }}

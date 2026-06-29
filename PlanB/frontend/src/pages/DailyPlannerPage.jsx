@@ -4,7 +4,7 @@ import useAuthStore from '../store/authStore'
 import useToastStore from '../store/toastStore'
 import {
   createBlock, createHabit, deleteBlock, deleteHabit,
-  getEntries, getEntry, getHabits, getWeekEntries, patchBlock, patchEntry, toggleHabitLog,
+  getEntries, getEntry, getHabits, getWeekEntries, getWeekReview, patchBlock, patchEntry, toggleHabitLog,
 } from '../lib/plannerApi'
 import { getProjects, getTasks } from '../lib/workspaceApi'
 import HabitHeatmap from '../components/HabitHeatmap'
@@ -174,6 +174,8 @@ export default function DailyPlannerPage() {
   const [pastEntries, setPastEntries]   = useState({ month: null, year: null })
   const [showPast, setShowPast]         = useState(false)
   const [celebratedToday, setCelebratedToday] = useState(false)
+  const [weekContext, setWeekContext] = useState(null)
+  const [showWeekContext, setShowWeekContext] = useState(true)
 
   const journalTimer   = useRef(null)
   const gratitudeTimer = useRef(null)
@@ -188,11 +190,13 @@ export default function DailyPlannerPage() {
       tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7))
       const isoWeek = Math.ceil((((tmp - new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1))) / 86400000) + 1) / 7)
 
-      const [recentEntries, weekEntries] = await Promise.all([
+      const [recentEntries, weekEntries, wr] = await Promise.all([
         getEntries(slug, { start: sixtyAgo }).catch(() => []),
         getWeekEntries(slug, firstDay.getFullYear(), isoWeek).catch(() => []),
+        getWeekReview(slug, firstDay.getFullYear(), isoWeek).catch(() => null),
       ])
       setJournalStreak(calcJournalStreak(recentEntries))
+      setWeekContext(wr)
       const moodMap = {}
       weekEntries.forEach(e => { moodMap[e.date] = e.mood })
       setWeekMoods(moodMap)
@@ -442,7 +446,37 @@ export default function DailyPlannerPage() {
                 )}
               </div>
 
-              {/* 태스크 목록 */}
+              {/* 이번 주 목표 컨텍스트 */}
+              {weekContext && (weekContext.mit1 || weekContext.mit2 || weekContext.mit3 || weekContext.next_focus) && (
+                <div style={{ flexShrink: 0, borderBottom: '1px solid var(--border)', background: 'color-mix(in srgb, var(--accent) 5%, var(--bg-elevated))' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', padding: '6px 16px 5px', cursor: 'pointer' }}
+                    onClick={() => setShowWeekContext(v => !v)}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1, textTransform: 'uppercase', flex: 1 }}>⚡ 이번 주 MIT</span>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{showWeekContext ? '▾' : '▸'}</span>
+                  </div>
+                  {showWeekContext && (
+                    <div style={{ padding: '0 16px 8px' }}>
+                      {weekContext.next_focus && (
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 5, fontStyle: 'italic', lineHeight: 1.4 }}>
+                          🎯 {weekContext.next_focus}
+                        </div>
+                      )}
+                      {[weekContext.mit1, weekContext.mit2, weekContext.mit3].filter(Boolean).map((mit, i) => (
+                        <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'baseline', marginBottom: 3 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: ['#6366f1','#10b981','#f59e0b'][i], flexShrink: 0, width: 14 }}>{i + 1}.</span>
+                          <span style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.4 }}>{mit}</span>
+                        </div>
+                      ))}
+                      <button onClick={() => navigate(`/workspaces/${slug}/planner/week`)}
+                        style={{ marginTop: 5, fontSize: 10, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline', opacity: 0.8 }}>
+                        주간 플래너에서 편집 →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+            {/* 태스크 목록 */}
               <div style={{ flex: 1, overflowY: 'auto', padding: '6px 12px' }}>
                 {projectTasks.length > 0 && (
                   <div style={{ marginBottom: 6 }}>
