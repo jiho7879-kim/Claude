@@ -28,9 +28,6 @@ _GEMINI_MODELS = [
     "gemini-3.1-flash-lite",
     "gemini-2.5-flash",
 ]
-_GROQ_MODELS = ["llama-3.3-70b-versatile", "llama3-8b-8192"]
-
-
 def _try_gemini(prompt: str, system: str) -> tuple[str, str]:
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     key_hint = (api_key[:6] + "..." + api_key[-4:]) if len(api_key) > 10 else "(short/empty)"
@@ -67,42 +64,42 @@ def _try_gemini(prompt: str, system: str) -> tuple[str, str]:
     raise last_exc
 
 
-def _try_groq(prompt: str, system: str) -> tuple[str, str]:
-    api_key = os.environ.get("GROQ_API_KEY", "")
-    logger.info("[GROQ] API key present: %s", bool(api_key))
+def _try_deepseek(prompt: str, system: str, require_json: bool = False) -> tuple[str, str]:
+    api_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
+    logger.info("[DEEPSEEK] API key present: %s (len=%d)", bool(api_key), len(api_key))
     if not api_key:
-        raise ValueError("GROQ_API_KEY 없음")
+        raise ValueError("DEEPSEEK_API_KEY 없음 — Render 환경변수에 등록 필요")
     try:
-        from groq import Groq
+        from openai import OpenAI
     except ImportError:
-        raise RuntimeError("groq 패키지 미설치")
-    client = Groq(api_key=api_key)
-    last_exc = None
-    for model_name in _GROQ_MODELS:
-        try:
-            logger.info("[GROQ] Trying model: %s", model_name)
-            resp = client.chat.completions.create(
-                model=model_name,
-                messages=[
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.3,
-                response_format={"type": "json_object"},
-            )
-            logger.info("[GROQ] Success with model: %s", model_name)
-            return resp.choices[0].message.content, model_name
-        except Exception as e:
-            logger.warning("[GROQ] Model %s failed: %s", model_name, str(e)[:200])
-            last_exc = e
-            err_str = str(e)
-            if "429" not in err_str and "404" not in err_str and "model_not_found" not in err_str:
-                raise
-    raise last_exc
+        raise RuntimeError("openai 패키지 미설치 (pip install openai>=1.30.0)")
+    client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+    kwargs = {
+        "model": "deepseek-v4-flash",
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.3,
+    }
+    if require_json:
+        kwargs["response_format"] = {"type": "json_object"}
+    try:
+        logger.info("[DEEPSEEK] Calling deepseek-v4-flash (json=%s)", require_json)
+        resp = client.chat.completions.create(**kwargs)
+        logger.info("[DEEPSEEK] Success")
+        return resp.choices[0].message.content, "deepseek-v4-flash"
+    except Exception as e:
+        logger.warning("[DEEPSEEK] Failed: %s", str(e)[:200])
+        raise
 
 
-def _gemini(prompt: str, system: str = "") -> tuple[str, str]:
-    """Returns (text, model_label)."""
+def _gemini(prompt: str, system: str = "", require_json: bool = False) -> tuple[str, str]:
+    """Returns (text, model_label).
+    
+    AI 호출 체인: Gemini → DeepSeek (fallback)
+    require_json=True 시 DeepSeek에서 response_format=json_object 적용.
+    """
     system_text = system or "당신은 친절한 프로젝트 관리 어시스턴트입니다. 항상 한국어로 답변하세요."
     errors = []
     try:
@@ -111,14 +108,14 @@ def _gemini(prompt: str, system: str = "") -> tuple[str, str]:
         return text, label
     except Exception as e:
         errors.append(f"Gemini: {str(e)[:120]}")
-        logger.warning("[AI] Gemini failed, falling back to Groq. Error: %s", str(e)[:200])
+        logger.warning("[AI] Gemini failed, falling back to DeepSeek. Error: %s", str(e)[:200])
     try:
-        text, model = _try_groq(prompt, system_text)
-        label = "Groq " + model.split("-")[0].capitalize()
+        text, model = _try_deepseek(prompt, system_text, require_json=require_json)
+        label = "DeepSeek V4 Flash"
         return text, label
     except Exception as e:
-        errors.append(f"Groq: {str(e)[:120]}")
-        logger.error("[AI] Both Gemini and Groq failed: %s", " | ".join(errors))
+        errors.append(f"DeepSeek: {str(e)[:120]}")
+        logger.error("[AI] Both Gemini and DeepSeek failed: %s", " | ".join(errors))
     raise RuntimeError(" | ".join(errors))
 
 
@@ -157,7 +154,7 @@ def nl_task(request, workspace_slug: str):
         "into a structured task. Respond ONLY with valid JSON:\n"
         '{"title":"<title>","priority":"urgent|high|medium|low","due_date":"YYYY-MM-DD or null","notes":""}'
     )
-    raw, _ = _gemini(text, system)
+    raw, _ = _gemini(text, system, require_json=True)
     try:
         parsed = json.loads(raw)
     except Exception:
@@ -180,7 +177,7 @@ def epic_breakdown(request, workspace_slug: str, project_id: str):
         '[{"title":"<task title>","priority":"urgent|high|medium|low","notes":""}]'
     )
     prompt = f"Epic: {title}\n{('Description: ' + description) if description else ''}"
-    raw, _ = _gemini(prompt, system)
+    raw, _ = _gemini(prompt, system, require_json=True)
 
     try:
         tasks = json.loads(raw)
@@ -271,11 +268,13 @@ def _build_workspace_context(workspace, user):
         lines.append(f"  - ID:{e['id']} {e['title']} | {e['start_at'].strftime('%Y-%m-%d %H:%M')}~{e['end_at'].strftime('%H:%M')}")
 
     lines.append("")
-    try:
-        entry = DailyEntry.objects.get(user=user, workspace=workspace, date=today)
-        blocks = list(entry.time_blocks.values("id", "title", "start_time", "end_time", "category", "is_done", "order"))
-    except DailyEntry.DoesNotExist:
-        blocks = []
+    blocks = list(
+        TimeBlock.objects.filter(
+            daily_entry__user=user,
+            daily_entry__workspace=workspace,
+            daily_entry__date=today,
+        ).values("id", "title", "start_time", "end_time", "category", "is_done", "order")
+    )
     lines.append(f"[오늘 플래너 할일] ({len(blocks)}개) - 오늘 날짜:{today.isoformat()}")
     for b in blocks:
         done = "✓" if b["is_done"] else "○"
@@ -416,7 +415,7 @@ def chat(request, workspace_slug: str):
 사용자: {message}"""
 
     try:
-        raw, model_label = _gemini(prompt, CHAT_SYSTEM)
+        raw, model_label = _gemini(prompt, CHAT_SYSTEM, require_json=True)
         logger.info("[CHAT:%s] model=%s raw_len=%d", req_id, model_label, len(raw))
     except ValueError as e:
         logger.error("[CHAT:%s] ValueError: %s", req_id, e)
