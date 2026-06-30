@@ -11,7 +11,7 @@ const STATUS_META = {
   active:    { bg: 'var(--accent-muted)',    color: 'var(--accent)',          label: '진행 중 ●' },
   completed: { bg: 'rgba(16,185,129,0.15)', color: 'var(--success)',         label: '완료됨' },
 }
-const inputStyle = { width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: 'var(--r-md)', fontSize: '13px', marginBottom: '12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-primary)' }
+const inputStyle = { width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: 'var(--r-md)', fontSize: '13px', marginBottom: '12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-primary)' } as React.CSSProperties
 const labelStyle = { display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '5px', fontWeight: 500 }
 
 function SprintModal({ sprint, onClose, onSave }) {
@@ -49,7 +49,7 @@ function BurndownChart({ sprint, tasks }) {
   if (!sprint || tasks.length === 0) return null
   const start = new Date(sprint.start_date)
   const end   = new Date(sprint.end_date)
-  const days  = Math.max(1, Math.round((end - start) / 86400000) + 1)
+  const days  = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1)
   const ideal = Array.from({ length: days }, (_, i) => ({
     day: `D+${i}`,
     ideal: Math.round(tasks.length * (1 - i / (days - 1))),
@@ -145,7 +145,7 @@ export default function SprintPage() {
             const isOpen = openId === sprint.id
             const today = new Date()
             const end   = new Date(sprint.end_date)
-            const daysLeft = Math.ceil((end - today) / 86400000)
+            const daysLeft = Math.ceil((end.getTime() - today.getTime()) / 86400000)
             return (
               <div key={sprint.id} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
                 {/* Sprint header */}

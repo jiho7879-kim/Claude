@@ -25,7 +25,7 @@ const inputStyle = {
   borderRadius: 'var(--r-md)', fontSize: '14px',
   background: 'var(--bg-elevated)', border: '1px solid var(--border)',
   color: 'var(--text-primary)', outline: 'none',
-}
+} as React.CSSProperties
 
 function Section({ title, children }) {
   return (

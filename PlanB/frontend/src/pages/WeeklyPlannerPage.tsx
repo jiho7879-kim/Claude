@@ -4,6 +4,16 @@ import useToastStore from '../store/toastStore'
 import { getHabits, getWeekEntries, getWeekReview, patchWeekReview } from '../lib/plannerApi'
 import { getProjects, getTasks } from '../lib/workspaceApi'
 
+interface WeekReview {
+  went_well?: string
+  to_improve?: string
+  next_focus?: string
+  mit1?: string
+  mit2?: string
+  mit3?: string
+  [key: string]: unknown
+}
+
 const MOODS = { great:'😄', good:'🙂', neutral:'😐', bad:'😕', awful:'😣' }
 const DAY_LABELS = ['월','화','수','목','금','토','일']
 const MIT_COLORS = ['#6366f1', '#10b981', '#f59e0b']
@@ -12,7 +22,7 @@ function getISOWeek(date) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7))
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
-  return { year: d.getUTCFullYear(), week: Math.ceil((((d - yearStart) / 86400000) + 1) / 7) }
+  return { year: d.getUTCFullYear(), week: Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7) }
 }
 
 function getWeekDates(year, week) {
@@ -38,13 +48,13 @@ export default function WeeklyPlannerPage() {
   const today = new Date()
   const [{ year, week }, setYW] = useState(getISOWeek(today))
   const [entries, setEntries] = useState([])
-  const [review, setReview] = useState({})
+  const [review, setReview] = useState<WeekReview>({})
   const [habits, setHabits] = useState([])
   const [weekTasks, setWeekTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const saveTimer = useRef(null)
   const [saving, setSaving] = useState(false)
-  const [prevReview, setPrevReview] = useState(null)
+  const [prevReview, setPrevReview] = useState<WeekReview | null>(null)
 
   const weekDates = getWeekDates(year, week)
 
@@ -113,7 +123,7 @@ export default function WeeklyPlannerPage() {
   const energyAvg = energyEntries.length ? (energyEntries.reduce((s, e) => s + e.energy, 0) / energyEntries.length).toFixed(1) : null
 
   const topEmotionTags = (() => {
-    const counts = entries.reduce((acc, e) => {
+    const counts = entries.reduce<Record<string, number>>((acc, e) => {
       (e.emotion_tags || []).forEach(tag => { acc[tag] = (acc[tag] || 0) + 1 })
       return acc
     }, {})
@@ -124,13 +134,14 @@ export default function WeeklyPlannerPage() {
     .map(d => entryByDate[d]?.one_liner?.trim() ? { date: d, text: entryByDate[d].one_liner, dayIdx: weekDates.indexOf(d) } : null)
     .filter(Boolean)
 
-  const bestDay = weekDates.reduce((best, d) => {
+  const bestDay = weekDates.reduce<{ date: string; score: number; mood: string; pct: number } | null>((best, d) => {
     const e = entryByDate[d]
     if (!e) return best
     const blocks = e.time_blocks || []
     const pct = blocks.length ? (blocks.filter(b => b.is_done).length / blocks.length) * 100 : 0
     const score = pct * 0.6 + (e.energy || 0) * 8
-    return (!best || score > best.score) ? { date: d, score, mood: e.mood, pct: Math.round(pct) } : best
+    if (!best || score > best.score) return { date: d, score, mood: e.mood, pct: Math.round(pct) }
+    return best
   }, null)
 
   const mitSetCount = [review.mit1, review.mit2, review.mit3].filter(Boolean).length
@@ -456,7 +467,7 @@ export default function WeeklyPlannerPage() {
                     }}>
                       <span style={{ fontSize:15, fontWeight:700, color:MIT_COLORS[n-1], width:20, flexShrink:0 }}>{n}</span>
                       <input
-                        value={review[`mit${n}`] || ''}
+                        value={(review[`mit${n}`] as string) || ''}
                         onChange={e => handleReviewField(`mit${n}`, e.target.value)}
                         placeholder={['가장 중요한 핵심 목표...', '두 번째 핵심 목표...', '세 번째 핵심 목표...'][n-1]}
                         style={{ flex:1, background:'transparent', border:'none', color:'var(--text-primary)', fontSize:14, outline:'none', fontWeight: review[`mit${n}`] ? 600 : 400 }}

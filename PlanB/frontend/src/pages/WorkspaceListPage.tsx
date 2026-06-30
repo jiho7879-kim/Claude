@@ -52,7 +52,7 @@ const inputStyle = {
   width: '100%', boxSizing: 'border-box', padding: '8px 12px',
   borderRadius: 'var(--r-md)', fontSize: '13px', marginBottom: '14px',
   background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-primary)',
-}
+} as React.CSSProperties
 const labelStyle = { display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: 500 }
 
 function WorkspaceFormModal({ title, initial, onClose, onSave }) {

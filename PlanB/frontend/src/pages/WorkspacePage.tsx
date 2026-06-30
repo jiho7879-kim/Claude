@@ -32,7 +32,7 @@ const PIE_COLORS = ['#64748b','#6366f1','#10b981','#ef4444']
 const STATUS_ORDER = ['todo','in_progress','done','cancelled']
 const STATUS_LABEL = { todo:'Todo', in_progress:'진행 중', done:'완료', cancelled:'취소' }
 
-function StatCard({ title, value, sub, accent }) {
+function StatCard({ title, value, sub = '', accent = '' }) {
   return (
     <div style={{ background:'var(--bg-surface)', border:'1px solid var(--border)', borderRadius:'var(--r-lg)', padding:'16px 20px', display:'flex', flexDirection:'column', gap:4 }}>
       <div style={{ fontSize:'12px', color:'var(--text-muted)', fontWeight:500 }}>{title}</div>
@@ -157,7 +157,7 @@ export default function WorkspacePage() {
   const toast = useToastStore(s=>s.add)
   const { addProject } = useProjectStore()
   const [projects, setProjects]     = useState([])
-  const [taskStats, setTaskStats]   = useState({})
+  const [taskStats, setTaskStats]   = useState<Record<string, { total: number; done: number; byStatus: Record<string, number> }>>({})
   const [allTasksFlat, setAllTasksFlat] = useState([])
   const [members, setMembers]       = useState([])
   const [loading, setLoading]       = useState(true)
@@ -178,7 +178,7 @@ export default function WorkspacePage() {
       await Promise.all(projs.map(async p => {
         try {
           const tasks = await getTasks(slug, p.id, { tree:false })
-          const byStatus = {}
+          const byStatus: Record<string, number> = {}
           STATUS_ORDER.forEach(s => { byStatus[s] = tasks.filter(t=>t.status===s).length })
           stats[p.id] = { total: tasks.length, done: byStatus.done, byStatus }
           tasks.forEach(t => flat.push({ ...t, projectId: p.id }))
@@ -333,7 +333,7 @@ export default function WorkspacePage() {
         <EmptyState icon="📁" title="프로젝트가 없습니다" description="새 프로젝트를 만들어 팀과 함께 시작하세요." action="+ 새 프로젝트" onAction={()=>setShowModal(true)}/>
       ) : (
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px,1fr))', gap:16 }}>
-          {filtered.map(p=><ProjectCard key={p.id} project={p} taskStats={taskStats[p.id]} onClick={()=>navigate(`/workspaces/${slug}/projects/${p.id}`)} onColorChange={handleColorChange}/>)}
+          {filtered.map((p, i)=><ProjectCard key={p.id} index={i} project={p} taskStats={taskStats[p.id]} onClick={()=>navigate(`/workspaces/${slug}/projects/${p.id}`)} onColorChange={handleColorChange}/>)}
         </div>
       )}
 
@@ -342,4 +342,3 @@ export default function WorkspacePage() {
     </div>
   )
 }
-
