@@ -11,6 +11,7 @@ gunicorn==21.2.0
 whitenoise==6.7.0
 dj-database-url==2.1.0
 requests>=2.32.5
+google-auth[requests]>=2.48.1
 google-genai>=1.0.0
 openai>=1.30.0
 Pillow>=11.0
