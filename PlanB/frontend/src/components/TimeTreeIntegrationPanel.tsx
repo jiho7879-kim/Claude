@@ -86,7 +86,10 @@ export default function TimeTreeIntegrationPanel({ slug, onClose }) {
       if (result.status === 'ok') toast('동기화 완료','success')
       else toast(`동기화 실패: ${result.detail}`,'error')
       load()
-    } catch { toast('동기화 요청 실패','error') }
+    } catch (e) {
+      const detail = e?.response?.data?.detail || e?.message || '알 수 없는 오류'
+      toast(`동기화 요청 실패: ${detail}`, 'error')
+    }
     setSyncing(null)
   }
 
