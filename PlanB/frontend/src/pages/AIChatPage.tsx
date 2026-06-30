@@ -2,6 +2,14 @@ import { useState, useRef, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { aiChat } from '../lib/aiApi'
 
+interface ChatMessage {
+  role: string
+  content: string
+  loading?: boolean
+  actions?: { type: string; label: string }[]
+  model?: string
+}
+
 const SUGGESTIONS = [
   '마감이 가장 급한 태스크가 뭐야?',
   '이번 주 일정 알려줘',
@@ -34,7 +42,7 @@ function ModelBadge({ model }) {
   )
 }
 
-function Message({ msg }) {
+function Message({ msg }: { msg: ChatMessage }) {
   const isUser = msg.role === 'user'
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start', marginBottom: 16 }}>
@@ -71,7 +79,7 @@ function Message({ msg }) {
 
 export default function AIChatPage() {
   const { slug } = useParams()
-  const [messages, setMessages] = useState([{
+  const [messages, setMessages] = useState<ChatMessage[]>([{
     role: 'assistant',
     content: '안녕하세요! PlanB AI 비서입니다 🤖\n\n프로젝트·태스크·일정에 대해 무엇이든 물어보세요.\n예: "000 언제까지 마감해야 해?" / "000 일정 언제야?" / "000 프로젝트에 태스크 등록해줘"',
   }])
@@ -86,7 +94,7 @@ export default function AIChatPage() {
 
   const history = messages.filter(m => !m.loading).map(m => ({ role: m.role, content: m.content }))
 
-  const send = async (text) => {
+  const send = async (text?: string) => {
     const msg = (text !== undefined ? text : input).trim()
     if (!msg || loading || sendingRef.current) return
     sendingRef.current = true

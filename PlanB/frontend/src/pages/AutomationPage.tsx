@@ -65,16 +65,16 @@ function NewRuleForm({ onSave, onCancel }) {
 
   const handleSave = () => {
     if (!form.name.trim()) return
-    const trigger_val = {}
+    const trigger_val: Record<string, string> = {}
     if (form.trigger === 'status_changed')   { if (triggerFrom) trigger_val.from = triggerFrom; if (triggerTo) trigger_val.to = triggerTo }
     if (form.trigger === 'priority_changed') { if (triggerFrom) trigger_val.from = triggerFrom; if (triggerTo) trigger_val.to = triggerTo }
-    const action_val = {}
+    const action_val: Record<string, string> = {}
     if (form.action === 'change_status')   action_val.status   = actionStatus
     if (form.action === 'change_priority') action_val.priority = actionPriority
     onSave({ ...form, trigger_val, action_val })
   }
 
-  const inp = { background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', color: 'var(--text)', padding: '6px 10px', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' }
+  const inp = { background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', color: 'var(--text)', padding: '6px 10px', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' } as React.CSSProperties
 
   return (
     <div style={{ ...card, borderColor: 'var(--border-focus)', marginBottom: 20 }}>

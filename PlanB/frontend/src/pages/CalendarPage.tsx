@@ -95,9 +95,9 @@ function MiniCalendar({ events, currentDate, onDateSelect }) {
         const end7 = new Date(now); end7.setDate(end7.getDate() + 7)
         const upcoming = events
           .filter(e => { const s = new Date(e.start); return s >= now && s <= end7 && !e.extendedProps?.isTask })
-          .sort((a,b) => new Date(a.start) - new Date(b.start))
+          .sort((a,b) => new Date(a.start).getTime() - new Date(b.start).getTime())
         if (!upcoming.length) return null
-        const byDay = {}
+        const byDay: Record<string, { label: string; events: any[] }> = {}
         upcoming.forEach(e => {
           const d = new Date(e.start); d.setHours(0,0,0,0)
           const k = d.toDateString()
@@ -289,7 +289,7 @@ function QuickCreatePopover({ date, pos, onClose, onCreate }) {
 // ─── Event Form Panel ──────────────────────────────────────────────────────
 
 function EventFormPanel({ form, setForm, onSubmit, onClose, isEditing }) {
-  const inp = { width:'100%', boxSizing:'border-box', padding:'8px 12px', borderRadius:'var(--r-md)', fontSize:13, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'var(--text-primary)', outline:'none' }
+  const inp = { width:'100%', boxSizing:'border-box', padding:'8px 12px', borderRadius:'var(--r-md)', fontSize:13, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'var(--text-primary)', outline:'none' } as React.CSSProperties
   const lbl = { display:'block', fontSize:12, color:'var(--text-muted)', marginBottom:6, fontWeight:500 }
 
   return (
@@ -424,14 +424,14 @@ export default function CalendarPage() {
 
   const openNewForm = dateStr => {
     setEditingId(null)
-    setForm({ title:'', start_at:`${dateStr}T09:00:00`, end_at:`${dateStr}T10:00:00`, is_all_day:false, visibility:'public', color:'#6366f1' })
+    setForm({ title:'', start_at:`${dateStr}T09:00:00`, end_at:`${dateStr}T10:00:00`, is_all_day:false, visibility:'public', color:'#6366f1', description:'' })
     setShowForm(true)
   }
 
   const openEditForm = fcEvent => {
     const raw = fcEvent.extendedProps.raw
     setEditingId(fcEvent.id)
-    setForm({ title:raw.title, start_at:raw.start_at, end_at:raw.end_at, is_all_day:raw.is_all_day, visibility:raw.visibility, color:raw.color||'#6366f1' })
+    setForm({ title:raw.title, start_at:raw.start_at, end_at:raw.end_at, is_all_day:raw.is_all_day, visibility:raw.visibility, color:raw.color||'#6366f1', description:raw.description||'' })
     setShowForm(true)
   }
 
@@ -495,7 +495,7 @@ export default function CalendarPage() {
       <div className="calendar-main" style={{ display: calMode === 'timeline' ? 'none' : 'flex', flex:1, overflow:'hidden', minHeight:0 }}>
         <MiniCalendar events={events} currentDate={currentDate} onDateSelect={handleDateSelect} />
 
-        <div className="calendar-fc-wrap" style={{ flex:1, padding:'16px 20px', overflowY:'auto', '--fc-border-color':'var(--border)', '--fc-today-bg-color':'var(--accent-muted)', '--fc-page-bg-color':'transparent' }}>
+        <div className="calendar-fc-wrap" style={{ flex:1, padding:'16px 20px', overflowY:'auto', '--fc-border-color':'var(--border)', '--fc-today-bg-color':'var(--accent-muted)', '--fc-page-bg-color':'transparent' } as React.CSSProperties}>
           <style>{`
             .fc{color:var(--text-primary);font-family:'Inter',sans-serif}
             .fc .fc-toolbar-title{font-size:15px;font-weight:700}

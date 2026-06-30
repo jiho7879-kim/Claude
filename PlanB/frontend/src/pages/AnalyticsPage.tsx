@@ -19,7 +19,7 @@ const STATUS_COLOR = { todo: 'var(--text-muted)', in_progress: '#f59e0b', done: 
 const PRIORITY_LABEL = { urgent: '긴급', high: '높음', medium: '보통', low: '낮음' }
 const PRIORITY_COLOR = { urgent: '#ef4444', high: '#f59e0b', medium: 'var(--accent)', low: 'var(--text-muted)' }
 
-function StatCard({ label, value, color }) {
+function StatCard({ label, value, color = '' }) {
   return (
     <div style={{
       background: 'var(--bg-surface)', border: '1px solid var(--border)',
