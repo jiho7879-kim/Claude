@@ -12,7 +12,7 @@ marked.setOptions({ breaks: true, gfm: true })
 function formatDate(iso) {
   const d = new Date(iso)
   const now = new Date()
-  const diff = (now - d) / 1000
+  const diff = (now.getTime() - d.getTime()) / 1000
   if (diff < 60) return '방금'
   if (diff < 3600) return `${Math.floor(diff / 60)}분 전`
   if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`
@@ -34,7 +34,7 @@ function renderMarkdown(content, allNotes, onNoteClick) {
     }
     return `<span class="wiki-link-missing">[[${title}]]</span>`
   })
-  const html = marked.parse(withLinks)
+  const html = marked.parse(withLinks) as string
   return DOMPurify.sanitize(html, { ADD_ATTR: ['data-note-id'] })
 }
 
@@ -293,7 +293,7 @@ export default function NotesPage() {
     const updated = await updateNote(slug, note.id, { is_pinned: !note.is_pinned })
     setNotes(prev => prev.map(n => n.id === updated.id ? updated : n).sort((a, b) => {
       if (a.is_pinned !== b.is_pinned) return b.is_pinned - a.is_pinned
-      return new Date(b.updated_at) - new Date(a.updated_at)
+      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
     }))
     if (active?.id === updated.id) setActive(updated)
   }
@@ -328,7 +328,7 @@ export default function NotesPage() {
 
   const handleAIApply = useCallback(async ({ content, tags }) => {
     if (!active) return
-    const patch = {}
+    const patch: Record<string, any> = {}
     if (content !== undefined) { patch.content = content; patch.title = extractTitle(content) }
     if (tags !== undefined) patch.tags = tags
     const updated = { ...active, ...patch }

@@ -81,7 +81,7 @@ function fmtShort(dateStr) {
 }
 function getDayOfYear(dateStr) {
   const d = new Date(dateStr + 'T00:00:00')
-  return Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 86400000)
+  return Math.floor((d.getTime() - new Date(d.getFullYear(), 0, 0).getTime()) / 86400000)
 }
 function getGreeting() {
   const h = new Date().getHours()
@@ -188,7 +188,7 @@ export default function DailyPlannerPage() {
       const firstDay = new Date(weekDates[0] + 'T00:00:00')
       const tmp = new Date(Date.UTC(firstDay.getFullYear(), firstDay.getMonth(), firstDay.getDate()))
       tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7))
-      const isoWeek = Math.ceil((((tmp - new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1))) / 86400000) + 1) / 7)
+      const isoWeek = Math.ceil((((tmp.getTime() - new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1)).getTime()) / 86400000) + 1) / 7)
 
       const [recentEntries, weekEntries, wr] = await Promise.all([
         getEntries(slug, { start: sixtyAgo }).catch(() => []),

@@ -81,7 +81,7 @@ function dueBadge(due_date) {
   if (!due_date) return null
   const d = new Date(due_date)
   const now = todayMidnight()
-  const diff = Math.round((d - now) / 86400000)
+  const diff = Math.round((d.getTime() - now.getTime()) / 86400000)
   if (diff < 0) return { label: `${Math.abs(diff)}일 지남`, color: '#ef4444' }
   if (diff === 0) return { label: '오늘', color: 'var(--accent)' }
   if (diff === 1) return { label: '내일', color: '#f59e0b' }
@@ -260,7 +260,7 @@ function ActivityHeatmap({ allTasks }) {
 // ─── Team Workload ────────────────────────────────────────────────────────────
 function TeamWorkloadPanel({ allTasks }) {
   const workload = useMemo(() => {
-    const map = {}
+    const map: Record<string, { name: string; count: number }> = {}
     for (const t of allTasks) {
       if (t.status === 'done' || t.status === 'cancelled' || !t.assignee) continue
       const a = t.assignee
@@ -343,7 +343,7 @@ function TaskRow({ task, slug, onToggleDone }) {
   )
 }
 
-function SectionHead({ label, count, accent }) {
+function SectionHead({ label, count, accent = '' }) {
   return (
     <div style={{ display:'flex', alignItems:'center', gap:5, marginTop:10, marginBottom:2 }}>
       <span style={{ fontSize:10, fontWeight:700, color: accent || 'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em' }}>{label}</span>
@@ -375,7 +375,7 @@ function TodayEventsPanel({ events, slug }) {
   const navigate = useNavigate()
   const todayEvents = useMemo(() =>
     events.filter(e => { const s = new Date(e.start_at || e.start); return s.toDateString() === new Date().toDateString() })
-      .sort((a,b) => new Date(a.start_at||a.start) - new Date(b.start_at||b.start))
+      .sort((a,b) => new Date(a.start_at||a.start).getTime() - new Date(b.start_at||b.start).getTime())
   , [events])
   const fmtTime = (iso) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}` }
   return (
@@ -407,7 +407,7 @@ function SprintCard({ sprint, project, slug }) {
   const pct   = total > 0 ? Math.round(done/total*100) : 0
   const dday = (() => {
     if (!sprint.end_date) return null
-    const diff = Math.round((new Date(sprint.end_date) - todayMidnight()) / 86400000)
+    const diff = Math.round((new Date(sprint.end_date).getTime() - todayMidnight().getTime()) / 86400000)
     if (diff < 0) return { label: '마감 초과', color: '#ef4444' }
     if (diff === 0) return { label: '오늘 마감', color: '#f59e0b' }
     return { label: `D-${diff}`, color: 'var(--text-muted)' }
@@ -518,7 +518,7 @@ function TodayPlannerPanel({ blocks, onToggle, slug }) {
 function ActivityFeedPanel({ recentTasks, slug }) {
   const navigate = useNavigate()
   const fmtRelative = (iso) => {
-    const diff = Math.round((Date.now() - new Date(iso)) / 60000)
+    const diff = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
     if (diff < 1) return '방금 전'
     if (diff < 60) return `${diff}분 전`
     if (diff < 1440) return `${Math.floor(diff/60)}시간 전`
@@ -554,7 +554,7 @@ function DashboardSkeleton() {
         <Skeleton height={12} width="30%" style={{ marginBottom: 8 }} />
         <Skeleton height={24} width="50%" style={{ marginBottom: 18 }} />
         <div style={{ display: 'flex', gap: 24 }}>
-          {[0,1,2].map(i => <Skeleton key={i} height={46} width={80} />)}
+          {[0,1,2].map(i => <Skeleton key={i} height={46} width="80" />)}
         </div>
       </div>
       <div className="dashboard-grid" style={{ display: 'grid', gridTemplateColumns: '300px 1fr 240px', gap: 16, marginBottom: 16 }}>
@@ -607,7 +607,7 @@ export default function DashboardPage() {
   }, [allTasks, user])
 
   const recentTasks = useMemo(() =>
-    [...allTasks].filter(t => t.updated_at).sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at)).slice(0, 8)
+    [...allTasks].filter(t => t.updated_at).sort((a,b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).slice(0, 8)
   , [allTasks])
 
   const handleToggleBlock = async (block) => {

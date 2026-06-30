@@ -64,7 +64,7 @@ function DatasetPanel({ slug, projectId }) {
 
   if (loading) return <div style={{ padding: 24, color: 'var(--text-muted)', fontSize: 13 }}>로딩 중...</div>
 
-  const inp = { width: '100%', boxSizing: 'border-box', padding: '7px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }
+  const inp = { width: '100%', boxSizing: 'border-box', padding: '7px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' } as React.CSSProperties
 
   return (
     <div style={{ padding: '20px 0' }}>
@@ -155,7 +155,7 @@ function ReferencePanel({ slug, projectId }) {
     catch { toast('삭제 실패', 'error') }
   }
 
-  const inp = { width: '100%', boxSizing: 'border-box', padding: '7px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }
+  const inp = { width: '100%', boxSizing: 'border-box', padding: '7px 10px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' } as React.CSSProperties
 
   if (loading) return <div style={{ padding: 24, color: 'var(--text-muted)', fontSize: 13 }}>로딩 중...</div>
 
@@ -215,7 +215,7 @@ function PublicationPanel({ project, slug, projectId, onProjectUpdate }) {
   })
   const [saving, setSaving] = useState(false)
   const toast = useToastStore(s => s.add)
-  const inp = { width: '100%', boxSizing: 'border-box', padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }
+  const inp = { width: '100%', boxSizing: 'border-box', padding: '8px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' } as React.CSSProperties
 
   const handleSave = async () => {
     setSaving(true)
@@ -289,7 +289,7 @@ function BulkToolbar({ count, members, onStatus, onPriority, onAssign, onDelete,
       <div style={{ width:1, height:20, background:'var(--border)' }} />
       <div style={{ position:'relative' }}>
         <button onClick={()=>{setShowStatus(v=>!v);setShowPriority(false);setShowAssign(false)}} style={{ padding:'5px 12px', background:'var(--bg-elevated)', border:'1px solid var(--border)', borderRadius:6, color:'var(--text-secondary)', fontSize:12, cursor:'pointer', fontWeight:500 }}>상태 변경</button>
-        {showStatus && <InlineDropdown options={STATUS_OPTIONS} labelMap={STATUS_LABEL} current={null} onSelect={onStatus} onClose={()=>setShowStatus(false)} />}
+        {showStatus && <InlineDropdown options={STATUS_OPTIONS} labelMap={STATUS_LABEL} colorMap={undefined} current={null} onSelect={onStatus} onClose={()=>setShowStatus(false)} />}
       </div>
       <div style={{ position:'relative' }}>
         <button onClick={()=>{setShowPriority(v=>!v);setShowStatus(false);setShowAssign(false)}} style={{ padding:'5px 12px', background:'var(--bg-elevated)', border:'1px solid var(--border)', borderRadius:6, color:'var(--text-secondary)', fontSize:12, cursor:'pointer', fontWeight:500 }}>우선순위</button>
@@ -390,10 +390,10 @@ function TaskRow({ task, depth, onTaskClick, onChildCreated, onTaskUpdate, slug,
         {/* Inline status dropdown */}
         <div style={{ position:'relative' }} onClick={e=>e.stopPropagation()}>
           <div onClick={()=>setShowStatusDrop(v=>!v)} style={{ cursor:'pointer' }}>
-            <StatusBadge status={task.status} />
+            <StatusBadge status={task.status} onChange={undefined} />
           </div>
           {showStatusDrop && (
-            <InlineDropdown options={STATUS_OPTIONS} labelMap={STATUS_LABEL} current={task.status}
+            <InlineDropdown options={STATUS_OPTIONS} labelMap={STATUS_LABEL} colorMap={undefined} current={task.status}
               onSelect={handleStatusChange} onClose={()=>setShowStatusDrop(false)} />
           )}
         </div>
@@ -411,7 +411,7 @@ function TaskRow({ task, depth, onTaskClick, onChildCreated, onTaskUpdate, slug,
           <button type="button" onClick={()=>setShowAdd(false)} style={{ padding:'4px 10px',background:'transparent',border:'1px solid var(--border)',color:'var(--text-muted)',borderRadius:'var(--r-sm)',cursor:'pointer',fontSize:'12px' }}>취소</button>
         </form>
       )}
-      {!collapsed && task.children?.map(child=><TaskRow key={child.id} task={child} depth={depth+1} onTaskClick={onTaskClick} onChildCreated={onChildCreated} onTaskUpdate={onTaskUpdate} slug={slug} projectId={projectId} isSelected={isSelected} onSelect={onSelect} anySelected={anySelected}/>)}
+      {!collapsed && task.children?.map(child=><TaskRow key={child.id} task={child} depth={depth+1} animIndex={undefined} onTaskClick={onTaskClick} onChildCreated={onChildCreated} onTaskUpdate={onTaskUpdate} slug={slug} projectId={projectId} isSelected={isSelected} onSelect={onSelect} anySelected={anySelected}/>)}
     </div>
   )
 }
