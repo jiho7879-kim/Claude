@@ -18,6 +18,9 @@ drf-spectacular>=0.28.0
 sentry-sdk>=2.0
 cryptography>=44.0
 playwright>=1.61
+python-dateutil>=2.9
+icalendar>=5.0
+timetree-exporter>=0.6
 # Dev / testing
 ruff>=0.8
 pytest>=8
