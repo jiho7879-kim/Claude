@@ -1,3 +1,6 @@
+# OpenCode
+.omo/
+
 # Environment
 .env
 .env.local

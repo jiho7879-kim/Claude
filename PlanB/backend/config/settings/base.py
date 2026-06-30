@@ -15,6 +15,7 @@ INSTALLED_APPS = [
     "django.contrib.sites",
     # Third-party
     "rest_framework",
+    "drf_spectacular",
     "corsheaders",
     "allauth",
     "allauth.account",
@@ -31,6 +32,8 @@ INSTALLED_APPS = [
     "apps.ai",
     "apps.automation",
     "apps.notes",
+    "apps.files",
+    "apps.notifications",
 ]
 
 MIDDLEWARE = [
@@ -90,6 +93,9 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 from datetime import timedelta
@@ -121,6 +127,14 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "PlanB API",
+    "DESCRIPTION": "PlanB — AI-powered project management platform API",
+    "VERSION": "0.1.0",
+    "SERVE_INCLUDE_SCHEMA": False,
 }
 
 ACCOUNT_ADAPTER = "apps.accounts.adapter.AccountAdapter"

@@ -2,7 +2,19 @@ import { create } from 'zustand'
 
 let nextId = 0
 
-const useToastStore = create((set) => ({
+interface Toast {
+  id: number
+  message: string
+  type: string
+}
+
+interface ToastState {
+  toasts: Toast[]
+  add: (message: string, type?: string, duration?: number) => void
+  remove: (id: number) => void
+}
+
+const useToastStore = create<ToastState>((set) => ({
   toasts: [],
   add: (message, type = 'info', duration = 3500) => {
     const id = ++nextId

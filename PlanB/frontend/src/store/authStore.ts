@@ -3,7 +3,23 @@ import api from '../lib/api'
 
 let _fetchMeRunning = false
 
-const useAuthStore = create((set) => ({
+interface AuthUser {
+  id: number
+  username: string
+  email: string
+  display_name?: string
+  avatar_url?: string
+}
+
+interface AuthState {
+  user: AuthUser | null
+  isAuthenticated: boolean
+  isLoading: boolean
+  fetchMe: () => Promise<void>
+  logout: () => void
+}
+
+const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isAuthenticated: false,
   isLoading: true,
@@ -33,7 +49,7 @@ const useAuthStore = create((set) => ({
       set({ user: data, isAuthenticated: true, isLoading: false })
     } catch (err) {
       const refreshToken = localStorage.getItem('refresh_token')
-      if (refreshToken && err?.response?.status === 401) {
+      if (refreshToken && (err as any)?.response?.status === 401) {
         try {
           const { data } = await api.post('/api/auth/token/refresh/', { refresh: refreshToken })
           localStorage.setItem('access_token', data.access)

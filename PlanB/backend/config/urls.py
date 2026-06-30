@@ -1,6 +1,9 @@
 from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path
+from django.conf.urls.static import static
+from django.conf import settings
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 from rest_framework_simplejwt.views import TokenRefreshView
 
 
@@ -39,6 +42,10 @@ from apps.ai.urls import project_urlpatterns as ai_project_urlpatterns
 from apps.calendars.urls import presentation_urlpatterns
 
 urlpatterns = [
+    # API docs
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
+    path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
     path("debug-check/", debug_check),
     path("admin/", admin.site.urls),
     path("accounts/", include("allauth.urls")),
@@ -81,4 +88,16 @@ urlpatterns = [
         "api/workspaces/<slug:workspace_slug>/projects/<uuid:project_id>/",
         include("apps.automation.urls"),
     ),
+    path(
+        "api/workspaces/<slug:workspace_slug>/files/",
+        include("apps.files.urls"),
+    ),
+    path(
+        "api/workspaces/<slug:workspace_slug>/notifications/",
+        include("apps.notifications.urls"),
+    ),
 ]
+
+# Serve media files in development
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

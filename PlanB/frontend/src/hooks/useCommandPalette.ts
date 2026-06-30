@@ -1,7 +1,14 @@
 import { useEffect } from 'react'
 import { create } from 'zustand'
 
-const usePaletteStore = create(set => ({
+interface PaletteState {
+  open: boolean
+  show: () => void
+  hide: () => void
+  toggle: () => void
+}
+
+const usePaletteStore = create<PaletteState>(set => ({
   open: false,
   show: () => set({ open: true }),
   hide: () => set({ open: false }),

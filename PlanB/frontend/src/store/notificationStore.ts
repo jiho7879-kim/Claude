@@ -1,10 +1,28 @@
 import { create } from 'zustand'
 
-const useNotificationStore = create((set, get) => ({
+interface NotificationItem {
+  id: number | string
+  read: boolean
+  createdAt: string
+  title?: string
+  message?: string
+  [key: string]: unknown
+}
+
+interface NotificationState {
+  notifications: NotificationItem[]
+  unreadCount: number
+  add: (notification: Partial<NotificationItem>) => void
+  markRead: (id: number | string) => void
+  markAllRead: () => void
+  clear: () => void
+}
+
+const useNotificationStore = create<NotificationState>((set) => ({
   notifications: [],
   unreadCount: 0,
   add: (notification) => {
-    const item = { id: Date.now(), read: false, createdAt: new Date().toISOString(), ...notification }
+    const item: NotificationItem = { id: Date.now(), read: false, createdAt: new Date().toISOString(), ...notification }
     set(s => ({ notifications: [item, ...s.notifications].slice(0, 50), unreadCount: s.unreadCount + 1 }))
   },
   markRead: (id) => set(s => ({

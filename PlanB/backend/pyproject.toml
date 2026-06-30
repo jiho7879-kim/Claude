@@ -68,6 +68,7 @@ docstring-code-format = true
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["apps"]
+python_files = ["tests.py"]
 DJANGO_SETTINGS_MODULE = "config.settings.test"
 addopts = [
     "-ra",
@@ -77,4 +78,8 @@ addopts = [
 ]
 filterwarnings = [
     "error",
+    # Django's FileField may leave file handles open during test multipart
+    # uploads.  The handle is closed during GC and the ResourceWarning from
+    # __del__ is harmless in a test context.
+    "ignore::ResourceWarning",
 ]

@@ -11,11 +11,11 @@ from .views import (
 )
 
 urlpatterns = [
-    path("notes/", ResearchNoteListCreateView.as_view()),
-    path("notes/<uuid:note_id>/", ResearchNoteDetailView.as_view()),
-    path("datasets/", DatasetListCreateView.as_view()),
-    path("datasets/<uuid:dataset_id>/", DatasetDetailView.as_view()),
-    path("refs/doi-lookup/", CrossrefLookupView.as_view()),
-    path("refs/", ReferenceListCreateView.as_view()),
-    path("refs/<uuid:ref_id>/", ReferenceDetailView.as_view()),
+    path("notes/", ResearchNoteListCreateView.as_view(), name="research-note-list"),
+    path("notes/<uuid:note_id>/", ResearchNoteDetailView.as_view(), name="research-note-detail"),
+    path("datasets/", DatasetListCreateView.as_view(), name="research-dataset-list"),
+    path("datasets/<uuid:dataset_id>/", DatasetDetailView.as_view(), name="research-dataset-detail"),
+    path("refs/doi-lookup/", CrossrefLookupView.as_view(), name="research-doi-lookup"),
+    path("refs/", ReferenceListCreateView.as_view(), name="research-ref-list"),
+    path("refs/<uuid:ref_id>/", ReferenceDetailView.as_view(), name="research-ref-detail"),
 ]

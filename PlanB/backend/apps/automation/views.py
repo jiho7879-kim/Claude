@@ -13,7 +13,7 @@ from .serializers import RuleLogSerializer, RuleSerializer
 
 class RuleListCreateView(APIView):
     def _get_project(self, workspace_slug: str, project_id: str, user):
-        workspace = get_object_or_404(Workspace, workspace_slug=workspace_slug, members__user=user)
+        workspace = get_object_or_404(Workspace, slug=workspace_slug, members__user=user)
         return get_object_or_404(Project, id=project_id, workspace=workspace)
 
     def get(self, request: Request, workspace_slug: str, project_id: str) -> Response:
@@ -31,7 +31,7 @@ class RuleListCreateView(APIView):
 
 class RuleDetailView(APIView):
     def _get_rule(self, workspace_slug: str, project_id: str, rule_id: str, user):
-        workspace = get_object_or_404(Workspace, workspace_slug=workspace_slug, members__user=user)
+        workspace = get_object_or_404(Workspace, slug=workspace_slug, members__user=user)
         project = get_object_or_404(Project, id=project_id, workspace=workspace)
         return get_object_or_404(Rule, id=rule_id, project=project)
 
@@ -50,7 +50,7 @@ class RuleDetailView(APIView):
 
 class RuleLogListView(APIView):
     def get(self, request: Request, workspace_slug: str, project_id: str, rule_id: str) -> Response:
-        workspace = get_object_or_404(Workspace, workspace_slug=workspace_slug, members__user=request.user)
+        workspace = get_object_or_404(Workspace, slug=workspace_slug, members__user=request.user)
         project = get_object_or_404(Project, id=project_id, workspace=workspace)
         rule = get_object_or_404(Rule, id=rule_id, project=project)
         logs = rule.logs.select_related("task")[:50]

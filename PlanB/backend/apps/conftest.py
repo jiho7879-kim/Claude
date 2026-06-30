@@ -42,11 +42,18 @@ def workspace(user, db):
 
 
 @pytest.fixture
-def project(workspace, db):
-    from apps.projects.models import Project
+def project(workspace, user, db):
+    from apps.projects.models import Project, ProjectMember
 
-    return Project.objects.create(
+    project = Project.objects.create(
         name="Test Project",
         workspace=workspace,
         status="active",
+        created_by=user,
     )
+    ProjectMember.objects.create(
+        project=project,
+        user=user,
+        role=ProjectMember.Role.MANAGER,
+    )
+    return project
