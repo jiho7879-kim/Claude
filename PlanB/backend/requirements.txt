@@ -15,6 +15,7 @@ google-genai>=1.0.0
 openai>=1.30.0
 Pillow>=11.0
 drf-spectacular>=0.28.0
+sentry-sdk>=2.0
 # Dev / testing
 ruff>=0.8
 pytest>=8

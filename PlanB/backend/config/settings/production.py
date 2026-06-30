@@ -1,6 +1,14 @@
 from .base import *
 import dj_database_url
 from decouple import config
+import sentry_sdk
+
+sentry_sdk.init(
+    dsn=config("SENTRY_DSN", default=""),
+    traces_sample_rate=config("SENTRY_TRACES_SAMPLE_RATE", default=0.1, cast=float),
+    send_default_pii=False,
+    environment=config("SENTRY_ENVIRONMENT", default="production"),
+)
 
 DEBUG = config("DEBUG", default=False, cast=bool)
 
