@@ -11,6 +11,7 @@ import {
   getChecklist, createChecklistItem, updateChecklistItem, deleteChecklistItem,
   getTimeEntries, createTimeEntry, deleteTimeEntry,
 } from '../lib/workspaceApi'
+import { uploadFile, deleteFile, getFileDownloadUrl } from '../lib/filesApi'
 
 function Field({ label, children }) {
   return (
@@ -273,6 +274,114 @@ function TimeTrackingTab({ slug, projectId, taskId }) {
   )
 }
 
+function fmtSize(bytes) {
+  if (!bytes) return '—'
+  if (bytes < 1024) return `${bytes}B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
+}
+
+function AttachmentsTab({ slug, projectId, task, onUpdate }) {
+  const toast = useToastStore(s => s.add)
+  const [attachments, setAttachments] = useState(task?.attachments || [])
+  const [uploading, setUploading] = useState(false)
+  const inputRef = useRef(null)
+
+  useEffect(() => {
+    setAttachments(task?.attachments || [])
+  }, [task?.id, task?.attachments])
+
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const created = await uploadFile(slug, file, task.id)
+      const attached = Array.isArray(created) ? created : [created]
+      setAttachments(prev => [...attached, ...prev])
+      toast('파일 업로드 완료', 'success')
+      onUpdate?.({ ...task, attachments: [...attached, ...attachments] })
+    } catch {
+      toast('업로드 실패', 'error')
+    } finally {
+      setUploading(false)
+      if (inputRef.current) inputRef.current.value = ''
+    }
+  }
+
+  const handleDelete = async (fileId) => {
+    if (!confirm('파일을 삭제하시겠습니까?')) return
+    try {
+      await deleteFile(slug, fileId)
+      setAttachments(prev => prev.filter(a => a.id !== fileId))
+      toast('파일 삭제됨', 'success')
+    } catch {
+      toast('삭제 실패', 'error')
+    }
+  }
+
+  return (
+    <div>
+      <div style={{ marginBottom: 16 }}>
+        <input
+          ref={inputRef}
+          type="file"
+          onChange={handleUpload}
+          style={{ display: 'none' }}
+        />
+        <button
+          onClick={() => inputRef.current?.click()}
+          disabled={uploading}
+          style={{
+            width: '100%', padding: '10px', borderRadius: 'var(--r-md)',
+            border: '2px dashed var(--border)', background: 'var(--bg-elevated)',
+            color: uploading ? 'var(--text-muted)' : 'var(--accent)',
+            cursor: 'pointer', fontSize: '13px', fontWeight: 500,
+          }}
+        >
+          {uploading ? '업로드 중…' : '+ 파일 첨부'}
+        </button>
+      </div>
+
+      {attachments.length === 0 && (
+        <div style={{ fontSize: '13px', color: 'var(--text-muted)', padding: '8px 0' }}>
+          첨부된 파일이 없습니다.
+        </div>
+      )}
+
+      {attachments.map(a => (
+        <div
+          key={a.id}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '10px 0', borderBottom: '1px solid var(--border)',
+            fontSize: '13px',
+          }}
+        >
+          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {a.original_name}
+          </span>
+          <span style={{ color: 'var(--text-muted)', fontSize: '11px', flexShrink: 0 }}>
+            {fmtSize(a.size_bytes)}
+          </span>
+          <a
+            href={getFileDownloadUrl(slug, a.id)}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: 'var(--accent)', fontSize: '13px', textDecoration: 'none', flexShrink: 0 }}
+            title="다운로드"
+          >⬇</a>
+          <button
+            onClick={() => handleDelete(a.id)}
+            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '13px', padding: 0, opacity: 0.5, flexShrink: 0 }}
+            title="삭제"
+          >✕</button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function TaskDrawer({ task, onClose, onUpdate, onDelete, members = [] }) {
   const { slug, projectId } = useParams()
   const toast = useToastStore((s) => s.add)
@@ -452,6 +561,7 @@ export default function TaskDrawer({ task, onClose, onUpdate, onDelete, members 
             {[
               ['comments', `💬 댓글 (${comments.length})`],
               ['checklist', '✅ 체크리스트'],
+              ['attachments', `📎 첨부파일 (${(localTask.attachments || []).length})`],
               ['time', '⏱ 시간'],
               ['activity', '📋 활동'],
             ].map(([k, label]) => (
@@ -490,6 +600,8 @@ export default function TaskDrawer({ task, onClose, onUpdate, onDelete, members 
             </div>
           ) : tab === 'checklist' ? (
             <ChecklistTab slug={slug} projectId={projectId} taskId={localTask.id} />
+          ) : tab === 'attachments' ? (
+            <AttachmentsTab slug={slug} projectId={projectId} task={localTask} onUpdate={setLocalTask} />
           ) : tab === 'time' ? (
             <TimeTrackingTab slug={slug} projectId={projectId} taskId={localTask.id} />
           ) : (
