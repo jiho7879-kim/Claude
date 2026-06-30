@@ -122,7 +122,7 @@ function ChecklistTab({ slug, projectId, taskId }) {
       )}
 
       {items.map(item => (
-        <div key={item.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0', borderBottom:'1px solid var(--border)', group: true }}>
+        <div key={item.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0', borderBottom:'1px solid var(--border)' }}>
           <input
             type="checkbox"
             checked={item.is_done}
@@ -196,7 +196,7 @@ function TimeTrackingTab({ slug, projectId, taskId }) {
   const handleStop = async () => {
     setRunning(false)
     const endedAt = new Date()
-    const dur = Math.floor((endedAt - startedAt.current) / 1000)
+    const dur = Math.floor((endedAt.getTime() - startedAt.current.getTime()) / 1000)
     if (dur < 1) return
     try {
       const entry = await createTimeEntry(slug, projectId, taskId, {

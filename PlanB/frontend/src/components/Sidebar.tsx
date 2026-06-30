@@ -1,10 +1,11 @@
+import type { CSSProperties } from 'react'
 import { NavLink, useParams, useNavigate } from 'react-router-dom'
 import { useCommandPaletteStore } from '../hooks/useCommandPalette'
 import useAuthStore from '../store/authStore'
 import Avatar from './ui/Avatar'
 import { modKey } from '../lib/platform'
 
-const navBase = (isActive) => ({
+const navBase = (isActive): CSSProperties => ({
   display: 'flex', alignItems: 'center', gap: '8px',
   padding: '6px 10px', borderRadius: 'var(--r-md)', fontSize: '13px', fontWeight: 500,
   color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
@@ -14,10 +15,10 @@ const navBase = (isActive) => ({
   width: '100%', textAlign: 'left', boxSizing: 'border-box',
 })
 
-function NavItem({ to, icon, label, end, collapsed }) {
+function NavItem({ to, icon, label, end = false, collapsed }) {
   return (
     <NavLink to={to} end={end} title={collapsed ? label : undefined}
-      style={({ isActive }) => ({ ...navBase(isActive), justifyContent: collapsed ? 'center' : 'flex-start', padding: collapsed ? '8px' : '6px 10px' })}
+      style={({ isActive }): CSSProperties => ({ ...navBase(isActive), justifyContent: collapsed ? 'center' : 'flex-start', padding: collapsed ? '8px' : '6px 10px' })}
       onMouseEnter={e => { if (!e.currentTarget.style.background.includes('elevated')) e.currentTarget.style.background = 'var(--bg-elevated)' }}
       onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
     >
@@ -71,8 +72,8 @@ export default function Sidebar({ projects = [], collapsed, onToggle, mobileOpen
             <NavItem to={`/workspaces/${slug}/planner`} icon="📓" label="플래너" collapsed={collapsed} />
             {!collapsed && (
               <div style={{ paddingLeft: 22, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <NavLink to={`/workspaces/${slug}/planner`} end style={({ isActive }) => ({ ...navBase(isActive), fontSize: 12, padding: '4px 8px' })}>일간</NavLink>
-                <NavLink to={`/workspaces/${slug}/planner/week`} style={({ isActive }) => ({ ...navBase(isActive), fontSize: 12, padding: '4px 8px' })}>주간</NavLink>
+                <NavLink to={`/workspaces/${slug}/planner`} end style={({ isActive }): CSSProperties => ({ ...navBase(isActive), fontSize: 12, padding: '4px 8px' })}>일간</NavLink>
+                <NavLink to={`/workspaces/${slug}/planner/week`} style={({ isActive }): CSSProperties => ({ ...navBase(isActive), fontSize: 12, padding: '4px 8px' })}>주간</NavLink>
               </div>
             )}
             <NavItem to={`/workspaces/${slug}/members`} icon="👥" label="멤버" collapsed={collapsed} />
@@ -90,7 +91,7 @@ export default function Sidebar({ projects = [], collapsed, onToggle, mobileOpen
                       <NavLink
                         to={`/workspaces/${slug}/projects/${p.id}`}
                         end
-                        style={({ isActive }) => ({ ...navBase(isActive), paddingLeft: 22, flex: 1, minWidth: 0 })}
+                        style={({ isActive }): CSSProperties => ({ ...navBase(isActive), paddingLeft: 22, flex: 1, minWidth: 0 })}
                       >
                         <span style={{ width: 6, height: 6, borderRadius: '50%', background: p.color || 'var(--accent)', flexShrink: 0 }} />
                         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
@@ -99,7 +100,7 @@ export default function Sidebar({ projects = [], collapsed, onToggle, mobileOpen
                         <NavLink
                           to={`/workspaces/${slug}/projects/${p.id}/settings`}
                           title="프로젝트 설정"
-                          style={({ isActive }) => ({ ...navBase(isActive), width: 28, padding: '6px 4px', flexShrink: 0, justifyContent: 'center', flex: 'none' })}
+                          style={({ isActive }): CSSProperties => ({ ...navBase(isActive), width: 28, padding: '6px 4px', flexShrink: 0, justifyContent: 'center', flex: 'none' })}
                         >
                           ⚙
                         </NavLink>
@@ -108,7 +109,7 @@ export default function Sidebar({ projects = [], collapsed, onToggle, mobileOpen
                     {projectId === String(p.id) && (
                       <NavLink
                         to={`/workspaces/${slug}/projects/${p.id}/sprints`}
-                        style={({ isActive }) => ({ ...navBase(isActive), paddingLeft: 38, fontSize: '12px', marginTop: '1px' })}
+                        style={({ isActive }): CSSProperties => ({ ...navBase(isActive), paddingLeft: 38, fontSize: '12px', marginTop: '1px' })}
                       >
                         <span style={{ fontSize: '12px' }}>🔄</span> 스프린트
                       </NavLink>
@@ -116,7 +117,7 @@ export default function Sidebar({ projects = [], collapsed, onToggle, mobileOpen
                     {projectId === String(p.id) && (
                       <NavLink
                         to={`/workspaces/${slug}/projects/${p.id}/analytics`}
-                        style={({ isActive }) => ({ ...navBase(isActive), paddingLeft: 38, fontSize: '12px', marginTop: '1px' })}
+                        style={({ isActive }): CSSProperties => ({ ...navBase(isActive), paddingLeft: 38, fontSize: '12px', marginTop: '1px' })}
                       >
                         <span style={{ fontSize: '12px' }}>📊</span> 애널리틱스
                       </NavLink>
@@ -124,7 +125,7 @@ export default function Sidebar({ projects = [], collapsed, onToggle, mobileOpen
                     {projectId === String(p.id) && (
                       <NavLink
                         to={`/workspaces/${slug}/projects/${p.id}/automation`}
-                        style={({ isActive }) => ({ ...navBase(isActive), paddingLeft: 38, fontSize: '12px', marginTop: '1px' })}
+                        style={({ isActive }): CSSProperties => ({ ...navBase(isActive), paddingLeft: 38, fontSize: '12px', marginTop: '1px' })}
                       >
                         <span style={{ fontSize: '12px' }}>⚡</span> 자동화
                       </NavLink>
