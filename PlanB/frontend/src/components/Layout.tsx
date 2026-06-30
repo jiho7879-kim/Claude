@@ -12,8 +12,7 @@ export default function Layout({ children }) {
   const { slug } = useParams()
   const location = useLocation()
   const { projects, setProjects } = useProjectStore()
-  const addNotif = useNotificationStore(s => s.add)
-  const clearNotif = useNotificationStore(s => s.clear)
+  const store = useNotificationStore()
   const seededSlug = useRef(null)
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('sidebar-collapsed') === 'true' } catch { return false }
@@ -30,7 +29,7 @@ export default function Layout({ children }) {
       setProjects(projs)
       if (seededSlug.current === slug) return
       seededSlug.current = slug
-      clearNotif()
+      store.initWorkspace(slug)
       const today = new Date(); today.setHours(0,0,0,0)
       const soon = new Date(today); soon.setDate(soon.getDate() + 2)
       projs.forEach(p => {
@@ -39,9 +38,9 @@ export default function Layout({ children }) {
             if (!t.due_date || t.status === 'done') return
             const due = new Date(t.due_date)
             if (due < today) {
-              addNotif({ type:'due_soon', message:`"${t.title}" 마감일이 지났습니다`, sub:`${p.name} · ${t.due_date}` })
+              store.add(slug, { type:'due_soon', message:`"${t.title}" 마감일이 지났습니다`, sub:`${p.name} · ${t.due_date}`, related_object_type:'task', related_object_id:t.id })
             } else if (due <= soon) {
-              addNotif({ type:'due_soon', message:`"${t.title}" 마감이 2일 이내입니다`, sub:`${p.name} · ${t.due_date}` })
+              store.add(slug, { type:'due_soon', message:`"${t.title}" 마감이 2일 이내입니다`, sub:`${p.name} · ${t.due_date}`, related_object_type:'task', related_object_id:t.id })
             }
           })
         }).catch(() => {})

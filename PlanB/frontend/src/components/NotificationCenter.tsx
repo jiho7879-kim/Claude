@@ -13,7 +13,8 @@ function timeAgo(iso: string) {
 const TIER = {
   task_assigned: 0, due_soon: 0,
   comment_added: 1, status_changed: 1,
-  sprint_started: 2, info: 2,
+  task_updated: 1, mention: 1, file_attached: 1,
+  sprint_started: 2, info: 2, system: 2,
 }
 const TIER_LABEL = ['긴급 · 할당', '활동', '정보']
 const TIER_COLOR = ['var(--danger)', 'var(--accent)', 'var(--text-muted)']
@@ -21,9 +22,13 @@ const TYPE_META = {
   task_assigned:  { icon: '📌', color: 'var(--accent)' },
   status_changed: { icon: '🔄', color: '#f59e0b' },
   comment_added:  { icon: '💬', color: 'var(--success)' },
+  task_updated:   { icon: '✏️', color: '#f59e0b' },
+  mention:        { icon: '👤', color: '#6366f1' },
+  file_attached:  { icon: '📎', color: '#10b981' },
   sprint_started: { icon: '🚀', color: '#6366f1' },
   due_soon:       { icon: '⏰', color: 'var(--danger)' },
   info:           { icon: 'ℹ️', color: 'var(--text-muted)' },
+  system:         { icon: '⚙️', color: 'var(--text-muted)' },
 }
 
 function NotifItem({ n, onResolve, onSnooze, onOpen }) {
