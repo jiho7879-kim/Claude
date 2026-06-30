@@ -44,7 +44,7 @@ export default function TemplateGallery({ slug, onCreated, onClose }) {
     }
   }
 
-  const inp = {
+  const inp: React.CSSProperties = {
     width: '100%', boxSizing: 'border-box', padding: '8px 12px',
     borderRadius: 'var(--r-md)', fontSize: '13px',
     background: 'var(--bg-elevated)', border: '1px solid var(--border)',

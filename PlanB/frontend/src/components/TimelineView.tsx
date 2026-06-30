@@ -28,7 +28,7 @@ function addDays(date, n) {
   const d = new Date(date); d.setDate(d.getDate() + n); return d
 }
 function diffDays(a, b) {
-  return Math.round((new Date(b) - new Date(a)) / 86400000)
+  return Math.round((Number(new Date(b)) - Number(new Date(a))) / 86400000)
 }
 function fmtDate(d) {
   return `${d.getMonth()+1}/${d.getDate()}`
@@ -40,7 +40,7 @@ export default function TimelineView({ slug }) {
   const [rows, setRows] = useState([])
   const [sprintMeta, setSprintMeta] = useState([])
   const [loading, setLoading] = useState(true)
-  const [tooltip, setTooltip] = useState(null)
+  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null)
   const [zoom, setZoom] = useState('week')
 
   const DAY_PX = ZOOM_LEVELS[zoom]?.px ?? 20
@@ -65,7 +65,7 @@ export default function TimelineView({ slug }) {
     Promise.all([
       getProjects(slug).catch(() => []),
       getEvents(slug).catch(() => []),
-      getEntries(slug).catch(() => []),
+      getEntries(slug, {}).catch(() => []),
     ]).then(async ([projects, calEvents, plannerEntries]) => {
       const flatRows = []
       const meta = []
