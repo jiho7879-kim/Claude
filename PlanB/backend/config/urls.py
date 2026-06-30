@@ -3,6 +3,10 @@ from django.http import JsonResponse
 from django.urls import include, path
 from django.conf.urls.static import static
 from django.conf import settings
+
+
+def health_check(request):
+    return JsonResponse({"status": "ok", "service": "planb"}, status=200)
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 from rest_framework_simplejwt.views import TokenRefreshView
 
@@ -42,6 +46,7 @@ from apps.ai.urls import project_urlpatterns as ai_project_urlpatterns
 from apps.calendars.urls import integration_urlpatterns, presentation_urlpatterns
 
 urlpatterns = [
+    path("", health_check, name="health"),
     # API docs
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
