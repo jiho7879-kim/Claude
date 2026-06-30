@@ -12,5 +12,9 @@ whitenoise==6.7.0
 dj-database-url==2.1.0
 requests==2.32.3
 google-genai>=1.0.0
-groq>=0.9.0
 openai>=1.30.0
+# Dev / testing
+ruff>=0.8
+pytest>=8
+pytest-django>=4.8
+pytest-mock>=3.14

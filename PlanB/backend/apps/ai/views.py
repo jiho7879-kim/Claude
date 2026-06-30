@@ -8,6 +8,10 @@ import datetime
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from django.utils import timezone
+
+from .agents import execute_agent, route_request
+from .prompts import CHAT_SYSTEM, NOTE_AI_SYSTEMS
 
 logger = logging.getLogger("planb.ai")
 
@@ -28,10 +32,10 @@ _GEMINI_MODELS = [
     "gemini-3.1-flash-lite",
     "gemini-2.5-flash",
 ]
-def _try_gemini(prompt: str, system: str) -> tuple[str, str]:
+def _try_gemini(prompt: str, system: str, require_json: bool = False) -> tuple[str, str]:
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     key_hint = (api_key[:6] + "..." + api_key[-4:]) if len(api_key) > 10 else "(short/empty)"
-    logger.info("[GEMINI] API key hint: %s (len=%d)", key_hint, len(api_key))
+    logger.info("[GEMINI] API key hint: %s (len=%d) json=%s", key_hint, len(api_key), require_json)
     if not api_key:
         raise ValueError("GEMINI_API_KEY 없음")
     try:
@@ -44,10 +48,13 @@ def _try_gemini(prompt: str, system: str) -> tuple[str, str]:
     for model_name in _GEMINI_MODELS:
         try:
             logger.info("[GEMINI] Trying model: %s", model_name)
+            config = types.GenerateContentConfig(system_instruction=system)
+            if require_json:
+                config.response_mime_type = "application/json"
             response = client.models.generate_content(
                 model=model_name,
                 contents=prompt,
-                config=types.GenerateContentConfig(system_instruction=system),
+                config=config,
             )
             logger.info("[GEMINI] Success with model: %s", model_name)
             return response.text, model_name
@@ -55,9 +62,9 @@ def _try_gemini(prompt: str, system: str) -> tuple[str, str]:
             err_str = str(e)
             logger.warning("[GEMINI] Model %s failed: %s", model_name, err_str[:200])
             last_exc = e
-            if "429" in err_str:
-                # All Gemini models share the same quota — no point trying others
-                logger.warning("[GEMINI] 429 quota hit, skipping remaining Gemini models")
+            if "429" in err_str or "503" in err_str:
+                # All Gemini models share the same quota/backend — no point trying others
+                logger.warning("[GEMINI] 429/503 quota/exhaustion hit, skipping remaining Gemini models")
                 break
             if "404" not in err_str:
                 raise
@@ -90,20 +97,69 @@ def _try_deepseek(prompt: str, system: str, require_json: bool = False) -> tuple
         logger.info("[DEEPSEEK] Success")
         return resp.choices[0].message.content, "deepseek-v4-flash"
     except Exception as e:
-        logger.warning("[DEEPSEEK] Failed: %s", str(e)[:200])
-        raise
+        err_str = str(e)
+        logger.warning("[DEEPSEEK] Failed: %s", err_str[:200])
+        if "402" in err_str or "Insufficient Balance" in err_str:
+            raise RuntimeError(
+                "DeepSeek API 요금이 부족합니다. https://platform.deepseek.com 에서 충전 후 "
+                "DEEPSEEK_API_KEY를 확인하세요."
+            ) from e
+        if "429" in err_str:
+            raise RuntimeError("DeepSeek API Rate Limit 초과. 잠시 후 다시 시도해주세요.") from e
+        raise RuntimeError(f"DeepSeek API 오류: {err_str[:300]}") from e
+
+
+def _try_groq(prompt: str, system: str, require_json: bool = False) -> tuple[str, str]:
+    api_key = os.environ.get("GROQ_API_KEY", "").strip()
+    logger.info("[GROQ] API key present: %s (len=%d)", bool(api_key), len(api_key))
+    if not api_key:
+        raise ValueError("GROQ_API_KEY 없음 — Render 환경변수에 등록 필요")
+    try:
+        from openai import OpenAI
+    except ImportError:
+        raise RuntimeError("openai 패키지 미설치 (pip install openai>=1.30.0)")
+    client = OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1")
+    models = [
+        "llama-4-scout-17b-16e-instruct",
+        "llama-4-maverick-17b-128e-instruct",
+    ]
+    last_exc = None
+    for model in models:
+        try:
+            kwargs = {
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": 0.3,
+            }
+            if require_json:
+                kwargs["response_format"] = {"type": "json_object"}
+            logger.info("[GROQ] Calling %s (json=%s)", model, require_json)
+            resp = client.chat.completions.create(**kwargs)
+            logger.info("[GROQ] Success with model: %s", model)
+            return resp.choices[0].message.content, f"Groq {model}"
+        except Exception as e:
+            err_str = str(e)
+            logger.warning("[GROQ] Model %s failed: %s", model, err_str[:200])
+            last_exc = e
+            if "429" in err_str:
+                break
+    raise last_exc or RuntimeError("Groq: no models available")
 
 
 def _gemini(prompt: str, system: str = "", require_json: bool = False) -> tuple[str, str]:
     """Returns (text, model_label).
-    
-    AI 호출 체인: Gemini → DeepSeek (fallback)
-    require_json=True 시 DeepSeek에서 response_format=json_object 적용.
+
+    AI 호출 체인: Gemini → DeepSeek → Groq (fallback)
+    require_json=True 시 Gemini response_mime_type=application/json +
+    DeepSeek/Groq response_format=json_object 적용.
     """
     system_text = system or "당신은 친절한 프로젝트 관리 어시스턴트입니다. 항상 한국어로 답변하세요."
     errors = []
     try:
-        text, model = _try_gemini(prompt, system_text)
+        text, model = _try_gemini(prompt, system_text, require_json=require_json)
         label = model.replace("gemini-", "Gemini ").replace("-", " ").title()
         return text, label
     except Exception as e:
@@ -115,7 +171,14 @@ def _gemini(prompt: str, system: str = "", require_json: bool = False) -> tuple[
         return text, label
     except Exception as e:
         errors.append(f"DeepSeek: {str(e)[:120]}")
-        logger.error("[AI] Both Gemini and DeepSeek failed: %s", " | ".join(errors))
+        logger.warning("[AI] DeepSeek failed, falling back to Groq. Error: %s", str(e)[:200])
+    try:
+        text, model = _try_groq(prompt, system_text, require_json=require_json)
+        label = f"Groq {model.split()[-1]}"
+        return text, label
+    except Exception as e:
+        errors.append(f"Groq: {str(e)[:120]}")
+        logger.error("[AI] All providers failed: %s", " | ".join(errors))
     raise RuntimeError(" | ".join(errors))
 
 
@@ -133,7 +196,7 @@ def _extract_json(raw: str) -> dict | None:
     except Exception:
         pass
     # Find the first complete {...} block
-    match = re.search(r'\{[\s\S]*\}', text)
+    match = re.search(r'\{[\s\S]*?\}', text)
     if match:
         try:
             return json.loads(match.group())
@@ -154,7 +217,7 @@ def nl_task(request, workspace_slug: str):
         "into a structured task. Respond ONLY with valid JSON:\n"
         '{"title":"<title>","priority":"urgent|high|medium|low","due_date":"YYYY-MM-DD or null","notes":""}'
     )
-    raw, _ = _gemini(text, system, require_json=True)
+    raw, _ = execute_agent("json", text, system)
     try:
         parsed = json.loads(raw)
     except Exception:
@@ -177,7 +240,7 @@ def epic_breakdown(request, workspace_slug: str, project_id: str):
         '[{"title":"<task title>","priority":"urgent|high|medium|low","notes":""}]'
     )
     prompt = f"Epic: {title}\n{('Description: ' + description) if description else ''}"
-    raw, _ = _gemini(prompt, system, require_json=True)
+    raw, _ = execute_agent("json", prompt, system)
 
     try:
         tasks = json.loads(raw)
@@ -220,7 +283,7 @@ def weekly_summary(request, workspace_slug: str):
         "3-4문장으로 동기부여가 되는 주간 요약을 한국어로 작성해주세요."
     )
 
-    summary, _ = _gemini(prompt)
+    summary, _ = execute_agent("summary", prompt)
     if not summary:
         pct = round(done / total * 100) if total > 0 else 0
         summary = (
@@ -235,152 +298,116 @@ def weekly_summary(request, workspace_slug: str):
     })
 
 
-def _build_workspace_context(workspace, user):
+_INTENT_KEYWORDS = {
+    "task": ["태스크", "작업", "업무", "할 일", "마감", "프로젝트", "진행", "todo", "task"],
+    "planner": ["플래너", "오늘", "일간", "루틴", "습관", "타임블록", "timeblock"],
+    "calendar": ["캘린더", "일정", "이벤트", "약속", "미팅", "회의", "schedule", "event"],
+    "note": ["노트", "메모", "노트정리", "기록", "문서", "초안", "note", "memo"],
+}
+
+
+def _detect_intent(message: str) -> set:
+    """Classify user message into one or more intents based on keywords."""
+    msg = message.lower()
+    matched = set()
+    for intent, keywords in _INTENT_KEYWORDS.items():
+        if any(kw in msg for kw in keywords):
+            matched.add(intent)
+    return matched or {"general"}
+
+
+_CONTEXT_SECTIONS = {
+    "projects": "projects",
+    "tasks": "tasks",
+    "calendar": "calendar",
+    "planner": "planner",
+    "notes": "notes",
+}
+
+_INTENT_SECTIONS = {
+    "task": ["projects", "tasks"],
+    "planner": ["planner"],
+    "calendar": ["calendar"],
+    "note": ["notes"],
+    "general": ["projects", "tasks", "calendar", "planner", "notes"],
+}
+
+
+def _build_workspace_context(workspace, user, message=""):
+    """Build context based on detected intent to reduce token usage."""
     today = datetime.date.today()
+    intents = _detect_intent(message) if message else {"general"}
+    sections = set()
+    for intent in intents:
+        sections.update(_INTENT_SECTIONS.get(intent, ["general"]))
     lines = [f"오늘 날짜: {today.isoformat()} ({today.strftime('%A')})", ""]
 
-    projects = list(Project.objects.filter(workspace=workspace).values("id", "name", "status"))
-    lines.append(f"[프로젝트 목록] ({len(projects)}개)")
-    for p in projects:
-        lines.append(f"  - ID:{p['id']} 이름:{p['name']} 상태:{p['status']}")
+    if "projects" in sections:
+        projects = list(Project.objects.filter(workspace=workspace).values("id", "name", "status"))
+        lines.append(f"[프로젝트 목록] ({len(projects)}개)")
+        for p in projects:
+            lines.append(f"  - ID:{p['id']} 이름:{p['name']} 상태:{p['status']}")
+        lines.append("")
+    else:
+        projects = []
 
-    lines.append("")
-    tasks = list(
-        Task.objects.filter(project__workspace=workspace)
-        .exclude(status="done")
-        .order_by("due_date")[:60]
-        .values("id", "title", "status", "priority", "due_date", "project__id", "project__name")
-    )
-    lines.append(f"[진행 중인 태스크] ({len(tasks)}개)")
-    for t in tasks:
-        due = t["due_date"] or "미정"
-        flag = " ⚠️마감초과" if t["due_date"] and t["due_date"] < today else ""
-        lines.append(f"  - ID:{t['id']} [{t['project__name']}] {t['title']} | {t['status']} | 우선순위:{t['priority']} | 마감:{due}{flag}")
+    if "tasks" in sections:
+        tasks = list(
+            Task.objects.filter(project__workspace=workspace)
+            .exclude(status="done")
+            .order_by("due_date")[:60]
+            .values("id", "title", "status", "priority", "due_date", "project__id", "project__name")
+        )
+        lines.append(f"[진행 중인 태스크] ({len(tasks)}개)")
+        for t in tasks:
+            due = t["due_date"] or "미정"
+            flag = " ⚠️마감초과" if t["due_date"] and t["due_date"] < today else ""
+            lines.append(f"  - ID:{t['id']} [{t['project__name']}] {t['title']} | {t['status']} | 우선순위:{t['priority']} | 마감:{due}{flag}")
+        lines.append("")
 
-    lines.append("")
-    events = list(
-        CalendarEvent.objects.filter(workspace=workspace, start_at__date__gte=today)
-        .order_by("start_at")[:20]
-        .values("id", "title", "start_at", "end_at")
-    )
-    lines.append(f"[예정 일정] ({len(events)}개)")
-    for e in events:
-        lines.append(f"  - ID:{e['id']} {e['title']} | {e['start_at'].strftime('%Y-%m-%d %H:%M')}~{e['end_at'].strftime('%H:%M')}")
+    if "calendar" in sections:
+        events = list(
+            CalendarEvent.objects.filter(workspace=workspace, start_at__date__gte=today)
+            .order_by("start_at")[:20]
+            .values("id", "title", "start_at", "end_at")
+        )
+        lines.append(f"[예정 일정] ({len(events)}개)")
+        for e in events:
+            lines.append(f"  - ID:{e['id']} {e['title']} | {e['start_at'].strftime('%Y-%m-%d %H:%M')}~{e['end_at'].strftime('%H:%M')}")
+        lines.append("")
 
-    lines.append("")
-    blocks = list(
-        TimeBlock.objects.filter(
-            daily_entry__user=user,
-            daily_entry__workspace=workspace,
-            daily_entry__date=today,
-        ).values("id", "title", "start_time", "end_time", "category", "is_done", "order")
-    )
-    lines.append(f"[오늘 플래너 할일] ({len(blocks)}개) - 오늘 날짜:{today.isoformat()}")
-    for b in blocks:
-        done = "✓" if b["is_done"] else "○"
-        time_str = f" {b['start_time']}~{b['end_time']}" if b["start_time"] else ""
-        lines.append(f"  - ID:{b['id']} {done} {b['title']}{time_str} [{b['category']}]")
+    if "planner" in sections:
+        blocks = list(
+            TimeBlock.objects.filter(
+                daily_entry__user=user,
+                daily_entry__workspace=workspace,
+                daily_entry__date=today,
+            ).values("id", "title", "start_time", "end_time", "category", "is_done", "order")
+        )
+        lines.append(f"[오늘 플래너 할일] ({len(blocks)}개) - 오늘 날짜:{today.isoformat()}")
+        for b in blocks:
+            done = "✓" if b["is_done"] else "○"
+            time_str = f" {b['start_time']}~{b['end_time']}" if b["start_time"] else ""
+            lines.append(f"  - ID:{b['id']} {done} {b['title']}{time_str} [{b['category']}]")
+        lines.append("")
 
-    lines.append("")
-    notes = list(
-        Note.objects.filter(workspace=workspace, user=user)
-        .order_by("-updated_at")[:30]
-        .values("id", "title", "content", "tags", "updated_at")
-    )
-    lines.append(f"[노트] ({len(notes)}개)")
-    for n in notes:
-        preview = n["content"][:120].replace("\n", " ")
-        tags_str = " ".join(f"#{t}" for t in (n["tags"] or []))
-        lines.append(f"  - ID:{n['id']} 제목:{n['title'] or '제목없음'} | {preview}{(' ' + tags_str) if tags_str else ''}")
+    if "notes" in sections:
+        notes = list(
+            Note.objects.filter(workspace=workspace, user=user)
+            .order_by("-updated_at")[:30]
+            .values("id", "title", "content", "tags", "updated_at")
+        )
+        lines.append(f"[노트] ({len(notes)}개)")
+        for n in notes:
+            preview = n["content"][:120].replace("\n", " ")
+            tags_str = " ".join(f"#{t}" for t in (n["tags"] or []))
+            lines.append(f"  - ID:{n['id']} 제목:{n['title'] or '제목없음'} | {preview}{(' ' + tags_str) if tags_str else ''}")
+        lines.append("")
 
-    return "\n".join(lines), projects
+    return "\n".join(lines).strip(), projects
 
 
-CHAT_SYSTEM = """당신은 PlanB 생산성 앱의 AI 비서입니다. 항상 한국어로 답변하세요.
-
-## PlanB 앱 구조
-PlanB는 다음 5가지 핵심 기능을 가진 프로젝트 관리 앱입니다:
-1. **프로젝트/태스크**: 업무를 프로젝트 단위로 관리. 태스크에는 제목, 우선순위(urgent/high/medium/low), 마감일, 상태(todo/in_progress/done) 있음
-2. **캘린더**: 일정(이벤트) 관리. 시작/종료 시각 있음
-3. **플래너(일간)**: 오늘 할 일 목록(TimeBlock). 제목, 시간대, 카테고리(work/personal/health/learning/other) 있음
-4. **플래너(주간)**: 주간 리뷰 및 습관 관리
-5. **노트**: 자유형식 메모. Obsidian처럼 자유롭게 작성. 제목·내용·태그(#해시태그) 있음
-
-## 사용자 발화 → 액션 매핑 (반드시 암기)
-| 사용자가 이렇게 말하면 | 이 액션을 사용 |
-|---|---|
-| "플래너에 OOO 등록해줘" / "오늘 할 일에 OOO 추가" / "오늘 플래너에 OOO" | create_time_block |
-| "캘린더에 OOO 일정 잡아줘" / "OOO 일정 등록해줘" / "OO월 OO일 OOO" | create_event |
-| "OOO 프로젝트에 태스크 추가" / "OOO 업무 등록해줘" / "태스크 만들어줘" | create_task |
-| "노트에 OOO 적어줘" / "메모해줘: OOO" / "OOO 노트 저장해줘" | create_note (내용 있는 경우) |
-| "OOO 초안 작성해줘" / "OOO 노트 내용 써줘" / "OOO에 대해 정리해서 노트 만들어줘" / "OOO 노트 만들어줘" | create_note (AI가 내용 직접 작성) |
-| "OOO 노트 정리해줘" / "OOO 노트 구조화해줘" / "OOO 노트 업데이트해줘" / "OOO 노트 수정해줘" | update_note |
-| "OOO 노트 찾아줘" / "OOO 관련 노트 있어?" / "OOO 메모 뭐라고 했지?" | 노트 컨텍스트 검색 후 reply만 |
-| "OOO 언제 마감이야?" / "진행 중인 태스크 알려줘" / "OOO 일정 있어?" | 조회 후 reply만 |
-
-## 응답 형식 (코드블록 없이 순수 JSON만)
-{"reply": "자연스러운 한국어 답변", "actions": [...]}
-
-## actions 스키마
-
-### create_time_block (플래너 오늘 할 일)
-{"type": "create_time_block", "title": "할 일 제목", "category": "work|personal|health|learning|other", "start_time": "HH:MM or null", "end_time": "HH:MM or null"}
-
-### create_task (프로젝트 태스크)
-{"type": "create_task", "project_id": <int>, "project_name": "프로젝트명", "title": "태스크 제목", "priority": "urgent|high|medium|low", "due_date": "YYYY-MM-DD or null"}
-
-### create_event (캘린더 일정)
-{"type": "create_event", "title": "일정 제목", "start_at": "YYYY-MM-DDTHH:MM:00", "end_at": "YYYY-MM-DDTHH:MM:00", "description": ""}
-
-### create_note (노트 생성 - 내용 포함 필수)
-{"type": "create_note", "title": "노트 제목", "content": "마크다운 형식의 상세한 노트 내용 (절대 비워두지 말 것)", "tags": ["태그1", "태그2"]}
-
-### update_note (기존 노트 수정/정리)
-{"type": "update_note", "note_id": "<UUID>", "title": "노트 제목", "content": "마크다운 형식으로 구조화된 전체 내용", "tags": ["태그1", "태그2"]}
-
-## 노트 작성 규칙 (매우 중요)
-- **"초안 작성", "노트 만들어줘", "내용 써줘", "정리해줘"** 등의 요청은 반드시 create_note 액션을 사용하고 content 필드를 실제 내용으로 채울 것
-- content 필드는 절대 빈 문자열("")로 두지 말 것. 예: 제목이 "카레만들기"라면 카레 레시피 전체를 content에 작성
-- 노트 content는 마크다운 형식으로 작성: 섹션 제목(##), 목록(-), 강조(**) 등 적극 활용
-- 주제에 맞는 구체적이고 실용적인 내용을 충분히(최소 300자 이상) 작성할 것
-- **"OOO 노트 정리해줘"** 요청 시: 컨텍스트 [노트] 섹션에서 해당 노트 ID를 찾아 update_note 사용
-- update_note에서도 content는 반드시 구조화된 전체 내용으로 채울 것
-
-## 날짜·시간 변환 규칙 (반드시 준수)
-컨텍스트 첫 줄 "오늘 날짜: YYYY-MM-DD (Weekday)"를 기준으로 절대 날짜를 계산한다.
-
-**요일 번호**: 월=1, 화=2, 수=3, 목=4, 금=5, 토=6, 일=7 (ISO 기준, 월요일 시작)
-
-**날짜 표현 변환 예시** (오늘이 2026-06-27 Saturday 기준):
-- "오늘" → 2026-06-27
-- "내일" → 2026-06-28
-- "이번주 월요일" → 2026-06-22 (이미 지난 경우 그냥 계산)
-- "다음주 월요일" → 2026-06-29 (다음 주 첫 번째 날)
-- "다음주 수요일" → 2026-07-01
-- "다음주 금요일" → 2026-07-03
-- 오늘이 토요일이면: 다음 월요일 = 오늘+2일, 다음 주 월요일 = 오늘+9일
-
-**계산 방법**:
-1. 오늘 요일의 ISO 번호 파악 (월=1…일=7)
-2. "다음주 N요일": (7 - 오늘요일번호 + N요일번호) % 7 + 7 일 후 (최소 7일 후)
-3. 단, "다음주 월요일" 표현은 한국에서 보통 "다음 주 첫 번째 월요일"을 의미
-4. 오늘이 토요일(6)이면: 다음주 월요일(1) = 오늘 + (7-6+1) = 오늘 + 2일
-
-**시간 표현**:
-- "18시30분", "오후 6시 30분" → "18:30"
-- "오전 9시" → "09:00"
-- "정오" → "12:00"
-- 종료 시간 명시 없으면: 시작 시간 + 1시간
-
-## 일반 규칙
-- actions가 없으면 반드시 []
-- 프로젝트 언급 없이 태스크 추가 요청 시: 첫 번째 프로젝트 사용
-- 시간 언급 없는 플래너 항목: start_time/end_time null
-- 카테고리 추론: 업무/회의/개발 → work, 운동/건강 → health, 독서/공부 → learning, 개인 용무 → personal, 학습/연수/세미나 → learning
-- 노트 검색: 컨텍스트의 [노트] 섹션에서 제목·내용 전체 탐색 후 관련 내용 인용해서 답변
-- 조회 요청은 컨텍스트 데이터를 정확히 참조해서 답변 (없으면 "없다"고 정직하게)
-- **응답은 반드시 유효한 JSON 하나만 출력. 추가 텍스트 절대 금지.**
-"""
+# CHAT_SYSTEM and NOTE_AI_SYSTEMS moved to prompts.py
 
 
 @api_view(["POST"])
@@ -399,7 +426,7 @@ def chat(request, workspace_slug: str):
     except Workspace.DoesNotExist:
         return Response({"error": "workspace not found"}, status=404)
 
-    context_text, projects = _build_workspace_context(workspace, request.user)
+    context_text, projects = _build_workspace_context(workspace, request.user, message)
 
     history_text = ""
     for h in history[-6:]:
@@ -415,8 +442,9 @@ def chat(request, workspace_slug: str):
 사용자: {message}"""
 
     try:
-        raw, model_label = _gemini(prompt, CHAT_SYSTEM, require_json=True)
-        logger.info("[CHAT:%s] model=%s raw_len=%d", req_id, model_label, len(raw))
+        agent = route_request(message)
+        raw, model_label = execute_agent(agent, prompt, CHAT_SYSTEM)
+        logger.info("[CHAT:%s] agent=%s model=%s raw_len=%d", req_id, agent, model_label, len(raw))
     except ValueError as e:
         logger.error("[CHAT:%s] ValueError: %s", req_id, e)
         return Response({"reply": str(e), "actions": [], "model": None})
@@ -424,7 +452,13 @@ def chat(request, workspace_slug: str):
         err = str(e)
         logger.error("[CHAT:%s] AI error: %s", req_id, err[:300])
         if "429" in err:
-            return Response({"reply": "⚠️ Gemini API 무료 쿼터를 초과했습니다.\n\n**해결 방법:**\n1. aistudio.google.com → API 키 발급 (AI Studio 전용 키 사용)\n2. 또는 잠시 후 다시 시도해주세요 (분당 제한 초과 시 1분 대기)", "actions": [], "model": None})
+            return Response({"reply": "⚠️ AI 서비스 할당량이 초과되었습니다. 잠시 후 다시 시도해주세요.", "actions": [], "model": None})
+        if "503" in err:
+            return Response({"reply": "⚠️ AI 서비스가 현재 혼잡합니다. 잠시 후 다시 시도해주세요.", "actions": [], "model": None})
+        if "요금이 부족" in err:
+            return Response({"reply": f"⚠️ {err}", "actions": [], "model": None})
+        if "Rate Limit" in err:
+            return Response({"reply": f"⚠️ {err}", "actions": [], "model": None})
         return Response({"reply": f"AI 오류: {err}", "actions": [], "model": None})
 
     # 견고한 JSON 파싱
@@ -494,11 +528,17 @@ def chat(request, workspace_slug: str):
                     "id": str(block.id),
                 })
             elif action.get("type") == "create_event":
+                def _parse_dt(val):
+                    if isinstance(val, datetime.datetime):
+                        dt = val
+                    else:
+                        dt = datetime.datetime.fromisoformat(str(val))
+                    return dt if timezone.is_aware(dt) else timezone.make_aware(dt)
                 event = CalendarEvent.objects.create(
                     workspace=workspace,
                     title=action.get("title", "새 일정"),
-                    start_at=action.get("start_at"),
-                    end_at=action.get("end_at"),
+                    start_at=_parse_dt(action.get("start_at")),
+                    end_at=_parse_dt(action.get("end_at")),
                     description=action.get("description", ""),
                     created_by=request.user,
                 )
@@ -526,8 +566,8 @@ def chat(request, workspace_slug: str):
                     })
                 except Note.DoesNotExist:
                     pass
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("[CHAT:%s] action %s failed: %s", req_id, action.get("type"), exc)
 
     logger.info("[CHAT:%s] executed=%s model=%s", req_id, [a.get("type") for a in executed], model_label)
     return Response({"reply": reply, "actions": executed, "model": model_label, "req_id": req_id})
@@ -554,30 +594,14 @@ def daily_insight(request, workspace_slug: str):
     prompt = f"=== 워크스페이스 현황 ===\n{context_text}\n\n오늘의 인사이트 3가지를 작성하세요."
 
     try:
-        insight, _ = _gemini(prompt, system)
+        insight, _ = execute_agent("summary", prompt, system)
     except Exception as e:
         insight = None
 
     return Response({"insight": insight})
 
 
-NOTE_AI_SYSTEMS = {
-    "organize": (
-        "당신은 노트 정리 전문가입니다. 입력된 노트 내용을 마크다운 형식으로 구조화하세요.\n"
-        "## 섹션 제목, - 목록, **강조** 등을 활용해 읽기 좋게 정리하세요.\n"
-        "정리된 내용만 출력하고 다른 설명은 하지 마세요."
-    ),
-    "expand": (
-        "당신은 창의적인 글쓰기 보조입니다. 입력된 노트 내용을 기반으로 더 풍부하고 상세한 내용을 추가하세요.\n"
-        "기존 내용을 유지하면서 추가 정보, 예시, 관련 내용을 덧붙여 확장하세요.\n"
-        "마크다운 형식으로 작성하고 확장된 전체 내용만 출력하세요."
-    ),
-    "suggest_tags": (
-        "당신은 태그 추천 전문가입니다. 노트 내용을 분석하여 적절한 태그를 추천하세요.\n"
-        "JSON 배열 형식으로만 응답하세요: [\"태그1\", \"태그2\", \"태그3\"]\n"
-        "태그는 짧고 명확하게, 최대 5개까지만 추천하세요."
-    ),
-}
+# NOTE_AI_SYSTEMS imported from prompts.py
 
 
 @api_view(["POST"])
@@ -596,9 +620,10 @@ def note_ai_action(request, workspace_slug, note_id):
     action = request.data.get("action", "organize")
     system = NOTE_AI_SYSTEMS.get(action, NOTE_AI_SYSTEMS["organize"])
     prompt = f"제목: {note.title or '제목 없음'}\n\n내용:\n{note.content or '(내용 없음)'}"
+    agent = "classify" if action == "suggest_tags" else "creative"
 
     try:
-        result, _ = _gemini(prompt, system)
+        result, _ = execute_agent(agent, prompt, system)
     except Exception as e:
         return Response({"error": str(e)}, status=500)
 
