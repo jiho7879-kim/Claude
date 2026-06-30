@@ -104,3 +104,15 @@ export const createTimeEntry = (slug, projectId, taskId, data) =>
   api.post(`/api/workspaces/${slug}/projects/${projectId}/tasks/${taskId}/time-entries/`, data).then(r => r.data)
 export const deleteTimeEntry = (slug, projectId, taskId, entryId) =>
   api.delete(`/api/workspaces/${slug}/projects/${projectId}/tasks/${taskId}/time-entries/${entryId}/`)
+
+// TimeTree Integrations
+export const getTimeTreeIntegrations = (slug) =>
+  api.get(`/api/workspaces/${slug}/calendar/integrations/`).then(r => r.data)
+export const createTimeTreeIntegration = (slug, data) =>
+  api.post(`/api/workspaces/${slug}/calendar/integrations/`, data).then(r => r.data)
+export const updateTimeTreeIntegration = (slug, id, data) =>
+  api.patch(`/api/workspaces/${slug}/calendar/integrations/${id}/`, data).then(r => r.data)
+export const deleteTimeTreeIntegration = (slug, id) =>
+  api.delete(`/api/workspaces/${slug}/calendar/integrations/${id}/`)
+export const syncTimeTreeIntegration = (slug, id) =>
+  api.post(`/api/workspaces/${slug}/calendar/integrations/${id}/sync/`).then(r => r.data)

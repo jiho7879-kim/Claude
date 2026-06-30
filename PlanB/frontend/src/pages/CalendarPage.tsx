@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import TimelineView from '../components/TimelineView'
+import TimeTreeIntegrationPanel from '../components/TimeTreeIntegrationPanel'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
@@ -360,6 +361,7 @@ export default function CalendarPage() {
   const [quickCreate, setQuickCreate]   = useState(null)
   const [showForm, setShowForm]         = useState(false)
   const [editingId, setEditingId]       = useState(null)
+  const [showIntegrations, setShowIntegrations] = useState(false)
   const [form, setForm] = useState({ title:'', start_at:'', end_at:'', is_all_day:false, visibility:'public', color:'#6366f1', description:'' })
 
   const toFcEvent = e => ({
@@ -471,7 +473,15 @@ export default function CalendarPage() {
   return (
     <div className="app-content" style={{ padding:0, display:'flex', flexDirection:'column', height:'100%' }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'20px 24px 16px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
-        <h1 style={{ fontSize:22, fontWeight:700, margin:0 }}>캘린더</h1>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <h1 style={{ fontSize:22, fontWeight:700, margin:0 }}>캘린더</h1>
+          <button onClick={() => setShowIntegrations(true)} title="TimeTree 연동 설정"
+            style={{ background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', fontSize:16, padding:'2px 4px', borderRadius:4, transition:'color 0.15s' }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+            ⚙
+          </button>
+        </div>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           <div style={{ display:'flex', background:'var(--bg-elevated)', border:'1px solid var(--border)', borderRadius:'var(--r-md)', overflow:'hidden' }}>
             {[['calendar','📅 캘린더'],['timeline','📊 타임라인']].map(([mode, label]) => (
@@ -581,6 +591,9 @@ export default function CalendarPage() {
           onSubmit={handleSubmit} onClose={() => setShowForm(false)}
           isEditing={!!editingId}
         />
+      )}
+      {showIntegrations && (
+        <TimeTreeIntegrationPanel slug={slug} onClose={() => setShowIntegrations(false)} />
       )}
     </div>
   )
