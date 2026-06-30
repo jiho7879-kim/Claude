@@ -5,7 +5,9 @@ const VARIANTS = {
   subtle:  { bg: 'var(--bg-elevated)', hover: 'var(--bg-hover)', color: 'var(--text-primary)' },
 }
 
-export default function Button({ children, variant = 'ghost', size = 'md', onClick, disabled, style, type = 'button', className }) {
+export default function Button({ children, variant = 'ghost', size = 'md', onClick, disabled, style, type = 'button', className }: {
+  children?: any; variant?: string; size?: string; onClick?: any; disabled?: any; style?: any; type?: 'button' | 'submit' | 'reset'; className?: any
+}) {
   const v = VARIANTS[variant]
   const pad = size === 'sm' ? '4px 10px' : size === 'lg' ? '10px 20px' : '6px 14px'
   const fontSize = size === 'sm' ? '12px' : size === 'lg' ? '15px' : '13px'

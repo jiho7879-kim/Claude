@@ -4,7 +4,7 @@ const base = (slug) => `/api/workspaces/${slug}/notes/`
 const folderBase = (slug) => `/api/workspaces/${slug}/notes/folders/`
 
 export const getNotes = (slug, q = '', folder = null) => {
-  const params = {}
+  const params: Record<string, string> = {}
   if (q) params.q = q
   else if (folder) params.folder = folder
   return api.get(base(slug), { params }).then(r => r.data)
