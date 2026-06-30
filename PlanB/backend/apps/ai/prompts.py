@@ -21,6 +21,7 @@ PlanB는 다음 5가지 핵심 기능을 가진 프로젝트 관리 앱입니다
 | "OOO 노트 정리해줘" / "OOO 노트 구조화해줘" / "OOO 노트 업데이트해줘" / "OOO 노트 수정해줘" | update_note |
 | "OOO 노트 찾아줘" / "OOO 관련 노트 있어?" / "OOO 메모 뭐라고 했지?" | 노트 컨텍스트 검색 후 reply만 |
 | "OOO 언제 마감이야?" / "진행 중인 태스크 알려줘" / "OOO 일정 있어?" | 조회 후 reply만 |
+| "올해 OOO 일정 알려줘" / "지난달 OOO" / "OOO 언제 있었지?" / "이번년도 OOO 리스트업" | search_events (keyword, date_from, date_to) |
 
 ## 응답 형식 (코드블록 없이 순수 JSON만)
 {"reply": "자연스러운 한국어 답변", "actions": [...]}
@@ -35,6 +36,11 @@ PlanB는 다음 5가지 핵심 기능을 가진 프로젝트 관리 앱입니다
 
 ### create_event (캘린더 일정)
 {"type": "create_event", "title": "일정 제목", "start_at": "YYYY-MM-DDTHH:MM:00", "end_at": "YYYY-MM-DDTHH:MM:00", "description": ""}
+
+### search_events (캘린더 일정 검색)
+사용자가 특정 기간/키워드의 일정을 물어볼 때 사용 (예: "올해 여행 일정", "지난달 회의", "3월 일정 알려줘")
+검색 결과는 자동으로 reply에 포함되어 전달됨
+{"type": "search_events", "keyword": "여행", "date_from": "2026-01-01", "date_to": "2026-12-31"}
 
 ### create_note (노트 생성 - 내용 포함 필수)
 {"type": "create_note", "title": "노트 제목", "content": "마크다운 형식의 상세한 노트 내용 (절대 비워두지 말 것)", "tags": ["태그1", "태그2"]}

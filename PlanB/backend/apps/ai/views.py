@@ -8,6 +8,7 @@ import datetime
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from django.db import models
 from django.utils import timezone
 
 from .agents import execute_agent, route_request
@@ -529,6 +530,35 @@ def chat(request, workspace_slug: str):
                     "type": "create_time_block",
                     "label": f"플래너 등록됨: {block.title}",
                     "id": str(block.id),
+                })
+            elif action.get("type") == "search_events":
+                qs = CalendarEvent.objects.filter(workspace=workspace).order_by("-start_at")
+                if action.get("keyword"):
+                    qs = qs.filter(
+                        models.Q(title__icontains=action["keyword"])
+                        | models.Q(description__icontains=action["keyword"])
+                    )
+                if action.get("date_from"):
+                    qs = qs.filter(start_at__gte=action["date_from"])
+                if action.get("date_to"):
+                    qs = qs.filter(start_at__lte=action["date_to"])
+                results = list(qs.values("id", "title", "start_at", "end_at", "description")[:20])
+                if results:
+                    lines = [f"📅 '{action.get('keyword', '전체')}' 검색 결과 ({len(results)}개)"]
+                    for r in results:
+                        s = r["start_at"].strftime("%Y-%m-%d %H:%M") if r["start_at"] else "?"
+                        e = r["end_at"].strftime("%H:%M") if r["end_at"] else "?"
+                        desc = (r["description"] or "")[:80]
+                        lines.append(f"  • {r['title']} ({s}~{e})")
+                        if desc:
+                            lines.append(f"    {desc}")
+                    reply = "\n".join(lines)
+                else:
+                    reply = f"'{action.get('keyword', '')}' 조건에 맞는 일정이 없습니다."
+                executed.append({
+                    "type": "search_events",
+                    "label": f"일정 검색: {len(results)}개 찾음",
+                    "count": len(results),
                 })
             elif action.get("type") == "create_event":
                 def _parse_dt(val):
