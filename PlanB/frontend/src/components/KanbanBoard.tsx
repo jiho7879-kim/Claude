@@ -59,7 +59,7 @@ export default function KanbanBoard({ tasks, onTaskClick, onTaskUpdate }) {
   // Build group keys based on groupBy selection
   const getGroups = () => {
     if (groupBy === 'none') return null
-    const keySet = new Set()
+    const keySet = new Set<string>()
     tasks.forEach(t => {
       if (t.depth !== 0) return
       const key = groupBy === 'assignee'
@@ -128,7 +128,7 @@ export default function KanbanBoard({ tasks, onTaskClick, onTaskUpdate }) {
       )}
 
       <DragOverlay>
-        {activeTask && <KanbanCard task={activeTask} isDragging />}
+        {activeTask && <KanbanCard task={activeTask} isDragging onClick={undefined} isDropped={false} />}
       </DragOverlay>
     </DndContext>
   )

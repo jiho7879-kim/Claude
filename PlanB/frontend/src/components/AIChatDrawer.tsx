@@ -73,7 +73,9 @@ function Message({ msg }) {
 
 export default function AIChatDrawer({ open, onClose }) {
   const { slug } = useParams()
-  const [messages, setMessages] = useState([{
+  const [messages, setMessages] = useState<Array<{
+    role: string; content: string; loading?: boolean; actions?: any[]; model?: string
+  }>>([{
     role: 'assistant',
     content: '안녕하세요! 무엇이든 물어보세요 🤖\n태스크·일정·노트 생성도 가능합니다.',
   }])
@@ -94,7 +96,7 @@ export default function AIChatDrawer({ open, onClose }) {
 
   const history = messages.filter(m => !m.loading).map(m => ({ role: m.role, content: m.content }))
 
-  const send = async (text) => {
+  const send = async (text?) => {
     const msg = (text !== undefined ? text : input).trim()
     if (!msg || loading || !slug || sendingRef.current) return
     sendingRef.current = true

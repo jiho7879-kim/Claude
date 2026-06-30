@@ -6,7 +6,7 @@ const PRIORITY_COLOR = { urgent: '#ef4444', high: '#f59e0b', medium: '#6366f1', 
 
 function dueBadgeStyle(dueDate) {
   if (!dueDate) return null
-  const diff = Math.round((new Date(dueDate) - new Date()) / 86400000)
+  const diff = Math.round((Number(new Date(dueDate)) - Number(new Date())) / 86400000)
   if (diff < 0)  return { color: '#ef4444', bg: 'rgba(239,68,68,0.12)', label: `${Math.abs(diff)}일 초과` }
   if (diff === 0) return { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', label: '오늘' }
   if (diff === 1) return { color: '#f59e0b', bg: 'rgba(245,158,11,0.08)', label: '내일' }
