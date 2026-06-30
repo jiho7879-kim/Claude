@@ -60,13 +60,13 @@ class Command(BaseCommand):
         return tmp
 
     def _import_ics(self, ics_path, workspace, dry_run):
+        from django.utils import timezone as tz
         from icalendar import Calendar
 
         with open(ics_path, "rb") as f:
             cal = Calendar.from_ical(f.read())
 
         stats = dict(created=0, updated=0, skipped=0)
-        now = datetime.now()
 
         for component in cal.walk():
             if component.name != "VEVENT":
@@ -94,6 +94,11 @@ class Command(BaseCommand):
                     end_at = datetime.combine(dtend, datetime.min.time())
             else:
                 end_at = start_at
+
+            if tz.is_naive(start_at):
+                start_at = tz.make_aware(start_at)
+            if tz.is_naive(end_at):
+                end_at = tz.make_aware(end_at)
 
             existing = CalendarEvent.objects.filter(
                 external_source="timetree", external_id=uid, workspace=workspace
