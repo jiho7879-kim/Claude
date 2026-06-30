@@ -39,7 +39,7 @@ def debug_check(request):
     return JsonResponse(result)
 
 from apps.ai.urls import project_urlpatterns as ai_project_urlpatterns
-from apps.calendars.urls import presentation_urlpatterns
+from apps.calendars.urls import integration_urlpatterns, presentation_urlpatterns
 
 urlpatterns = [
     # API docs
@@ -68,6 +68,10 @@ urlpatterns = [
     path(
         "api/workspaces/<slug:workspace_slug>/events/",
         include("apps.calendars.urls"),
+    ),
+    path(
+        "api/workspaces/<slug:workspace_slug>/calendar/",
+        include(integration_urlpatterns),
     ),
     path("api/present/<slug:workspace_slug>/events/", include(presentation_urlpatterns)),
     path(
