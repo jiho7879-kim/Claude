@@ -11,7 +11,7 @@ from .serializers import NotificationSerializer
 
 
 class NotificationListView(APIView):
-    """List notifications for the current user in a workspace."""
+    """List and create notifications for the current user in a workspace."""
 
     permission_classes = [IsAuthenticated]
 
@@ -22,6 +22,41 @@ class NotificationListView(APIView):
             workspace__slug=workspace_slug,
         ).order_by("-created_at")
         return Response(NotificationSerializer(notifications, many=True).data)
+
+    def post(self, request, workspace_slug):
+        workspace = get_object_or_404(
+            Workspace, slug=workspace_slug, members__user=request.user
+        )
+    @staticmethod
+    def _find_duplicate(user, workspace, data):
+        filters = dict(
+            user=user,
+            workspace=workspace,
+            notification_type=data.get("notification_type"),
+            is_read=False,
+        )
+        related_id = data.get("related_object_id")
+        if related_id:
+            filters["related_object_id"] = related_id
+            return Notification.objects.filter(**filters).first()
+        filters["message"] = data.get("message", "")
+        return Notification.objects.filter(**filters).first()
+
+    def post(self, request, workspace_slug):
+        workspace = get_object_or_404(
+            Workspace, slug=workspace_slug, members__user=request.user
+        )
+        serializer = NotificationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        existing = self._find_duplicate(request.user, workspace, serializer.validated_data)
+        if existing:
+            return Response(NotificationSerializer(existing).data, status=status.HTTP_200_OK)
+
+        notification = serializer.save(user=request.user, workspace=workspace)
+        return Response(
+            NotificationSerializer(notification).data, status=status.HTTP_201_CREATED
+        )
 
 
 class NotificationUnreadCountView(APIView):

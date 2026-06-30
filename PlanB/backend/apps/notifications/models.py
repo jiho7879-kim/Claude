@@ -12,6 +12,9 @@ class Notification(models.Model):
         MENTION = "mention", "Mention"
         STATUS_CHANGED = "status_changed", "Status Changed"
         FILE_ATTACHED = "file_attached", "File Attached"
+        DUE_SOON = "due_soon", "Due Soon"
+        SPRINT_STARTED = "sprint_started", "Sprint Started"
+        INFO = "info", "Info"
         SYSTEM = "system", "System"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -35,6 +38,8 @@ class Notification(models.Model):
     message = models.TextField(blank=True, default="")
     related_object_type = models.CharField(max_length=50, blank=True, default="")
     related_object_id = models.UUIDField(null=True, blank=True)
+    sub = models.CharField(max_length=255, blank=True, default="")
+    link = models.CharField(max_length=500, blank=True, default="")
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
