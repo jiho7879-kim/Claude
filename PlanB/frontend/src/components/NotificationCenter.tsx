@@ -2,8 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import useNotificationStore from '../store/notificationStore'
 
-function timeAgo(iso) {
-  const s = Math.floor((Date.now() - new Date(iso)) / 1000)
+function timeAgo(iso: string) {
+  const s = Math.floor((Date.now() - Number(new Date(iso))) / 1000)
   if (s < 60)    return '방금 전'
   if (s < 3600)  return `${Math.floor(s / 60)}분 전`
   if (s < 86400) return `${Math.floor(s / 3600)}시간 전`
@@ -73,7 +73,7 @@ export default function NotificationCenter() {
   }, [])
 
   const tiered = [0, 1, 2].map(tier =>
-    notifications.filter(n => (TIER[n.type] ?? 2) === tier)
+    notifications.filter(n => (TIER[n.type as keyof typeof TIER] ?? 2) === tier)
   )
   const displayed = activeTab === -1 ? notifications : tiered[activeTab]
   const unreadInTab = displayed.filter(n => !n.read).length
