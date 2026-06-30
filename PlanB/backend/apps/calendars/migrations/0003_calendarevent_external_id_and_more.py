@@ -5,26 +5,27 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('calendars', '0002_calendarevent_color'),
-        ('workspaces', '0003_savedview'),
+        ("calendars", "0002_calendarevent_color"),
+        ("workspaces", "0003_savedview"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='calendarevent',
-            name='external_id',
-            field=models.CharField(blank=True, default='', max_length=255),
+            model_name="calendarevent",
+            name="external_id",
+            field=models.CharField(blank=True, default="", max_length=255),
         ),
         migrations.AddField(
-            model_name='calendarevent',
-            name='external_source',
-            field=models.CharField(blank=True, default='', max_length=50),
+            model_name="calendarevent",
+            name="external_source",
+            field=models.CharField(blank=True, default="", max_length=50),
         ),
         migrations.AddIndex(
-            model_name='calendarevent',
-            index=models.Index(fields=['external_source', 'external_id'], name='calendars_c_externa_30f8bb_idx'),
+            model_name="calendarevent",
+            index=models.Index(
+                fields=["external_source", "external_id"], name="calendars_c_externa_30f8bb_idx"
+            ),
         ),
     ]

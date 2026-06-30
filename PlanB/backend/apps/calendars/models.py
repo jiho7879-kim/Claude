@@ -42,9 +42,7 @@ class CalendarEvent(models.Model):
         PRIVATE = "private", "Private"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    workspace = models.ForeignKey(
-        Workspace, on_delete=models.CASCADE, related_name="events"
-    )
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name="events")
     title = models.CharField(max_length=300)
     description = models.TextField(blank=True)
     start_at = models.DateTimeField()
