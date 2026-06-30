@@ -77,7 +77,7 @@ class TaskListCreateView(APIView):
 
     def get(self, request, workspace_slug, project_id):
         project = self._project(workspace_slug, project_id, request.user)
-        qs = project.tasks.select_related("assignee", "created_by", "sprint")
+        qs = project.tasks.select_related("assignee", "created_by", "sprint").prefetch_related("attachments")
         q = request.query_params
         if q.get("status"):   qs = qs.filter(status__in=q["status"].split(","))
         if q.get("priority"): qs = qs.filter(priority__in=q["priority"].split(","))
@@ -100,7 +100,7 @@ class TaskListCreateView(APIView):
 
 class TaskDetailView(APIView):
     def _task(self, slug, pid, tid, user):
-        return get_object_or_404(Task, id=tid, project__id=pid,
+        return get_object_or_404(Task.objects.prefetch_related("attachments"), id=tid, project__id=pid,
                                  project__workspace__slug=slug, project__members__user=user)
 
     def get(self, request, workspace_slug, project_id, task_id):

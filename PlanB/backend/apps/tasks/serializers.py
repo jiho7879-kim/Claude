@@ -3,6 +3,7 @@ from datetime import timedelta
 from rest_framework import serializers
 
 from apps.accounts.serializers import UserSerializer
+from apps.files.serializers import FileAttachmentSerializer
 
 from .models import ActivityLog, ChecklistItem, Sprint, Task, TaskComment, TaskRelation, TimeEntry
 
@@ -34,13 +35,14 @@ class TaskSerializer(serializers.ModelSerializer):
     children_count = serializers.SerializerMethodField()
     comments_count = serializers.SerializerMethodField()
     sprint_name    = serializers.SerializerMethodField()
+    attachments    = FileAttachmentSerializer(many=True, read_only=True)
 
     class Meta:
         model  = Task
         fields = ("id", "project", "sprint", "sprint_name", "parent", "title", "description",
                   "status", "priority", "assignee", "created_by",
                   "start_date", "due_date", "is_milestone", "depth", "level_name", "order",
-                  "children_count", "comments_count", "created_at", "updated_at")
+                  "children_count", "comments_count", "attachments", "created_at", "updated_at")
         read_only_fields = ("id", "project", "depth", "created_by", "created_at", "updated_at")
 
     def get_children_count(self, obj): return obj.children.count()
