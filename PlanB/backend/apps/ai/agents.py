@@ -165,7 +165,7 @@ def _call_model(
     if model_name.startswith("gemini-"):
         from .views import _try_gemini
 
-        return _try_gemini(prompt, system_prompt, require_json=require_json)
+        return _try_gemini(prompt, system_prompt, require_json=require_json, model=model_name)
     if model_name.startswith("deepseek-"):
         from .views import _try_deepseek
 

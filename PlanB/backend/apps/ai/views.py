@@ -32,10 +32,10 @@ _GEMINI_MODELS = [
     "gemini-3.1-flash-lite",
     "gemini-2.5-flash",
 ]
-def _try_gemini(prompt: str, system: str, require_json: bool = False) -> tuple[str, str]:
+def _try_gemini(prompt: str, system: str, require_json: bool = False, model: str = None) -> tuple[str, str]:
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     key_hint = (api_key[:6] + "..." + api_key[-4:]) if len(api_key) > 10 else "(short/empty)"
-    logger.info("[GEMINI] API key hint: %s (len=%d) json=%s", key_hint, len(api_key), require_json)
+    logger.info("[GEMINI] API key hint: %s (len=%d) json=%s model=%s", key_hint, len(api_key), require_json, model or "(auto)")
     if not api_key:
         raise ValueError("GEMINI_API_KEY 없음")
     try:
@@ -44,8 +44,9 @@ def _try_gemini(prompt: str, system: str, require_json: bool = False) -> tuple[s
     except ImportError:
         raise RuntimeError("google-genai 패키지 미설치")
     client = genai.Client(api_key=api_key)
+    models_to_try = [model] if model else _GEMINI_MODELS
     last_exc = None
-    for model_name in _GEMINI_MODELS:
+    for model_name in models_to_try:
         try:
             logger.info("[GEMINI] Trying model: %s", model_name)
             config = types.GenerateContentConfig(system_instruction=system)
@@ -62,8 +63,10 @@ def _try_gemini(prompt: str, system: str, require_json: bool = False) -> tuple[s
             err_str = str(e)
             logger.warning("[GEMINI] Model %s failed: %s", model_name, err_str[:200])
             last_exc = e
+            if model:
+                # When called with a specific model, don't fall through to others
+                raise
             if "429" in err_str or "503" in err_str:
-                # All Gemini models share the same quota/backend — no point trying others
                 logger.warning("[GEMINI] 429/503 quota/exhaustion hit, skipping remaining Gemini models")
                 break
             if "404" not in err_str:
