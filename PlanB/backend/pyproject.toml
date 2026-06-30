@@ -1,0 +1,80 @@
+[project]
+name = "planb-backend"
+version = "0.1.0"
+description = "PlanB — AI-powered project management backend (Django + DRF)"
+requires-python = ">=3.12"
+dependencies = []
+
+# ─────────────────────────────────────────────────────────────────
+# ruff — linter + formatter
+# ─────────────────────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["apps", "config"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    # Formatter conflicts
+    "COM812",   # missing trailing comma
+    "ISC001",   # implicit string concat
+    # Docstring style conflicts
+    "D203",
+    "D213",
+    # Project-specific noise
+    "CPY001",   # copyright notice
+    "FBT001",   # boolean positional arg in def
+    "FBT002",   # boolean positional default in def
+    "TD002",    # missing TODO author
+    "TD003",    # missing TODO link
+    "FIX002",   # line contains TODO
+    # Django-specific: views use function-based patterns, DRF decorators
+    "ANN001",   # missing type annotation for function argument
+    "ANN201",   # missing return type annotation
+    "ANN002",   # missing *args type annotation
+    "ANN003",   # missing **kwargs type annotation
+    "ANN204",   # missing return type for __init__
+    # Django ORM pattern noise
+    "DJ008",    # Model __str__ should be a model property
+    "DJ001",    # Model field order mismatch
+    "DJ006",    # fields/ordering on Both
+]
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.per-file-ignores]
+"apps/*/tests.py" = [
+    "S101",     # assert is the point of pytest
+    "ARG",      # unused args from fixtures
+    "PLR2004",  # magic numbers in test data
+    "SLF001",   # tests may access _private members
+    "D",        # no docstring requirement in tests
+    "ANN",      # no type annotation requirement in tests
+    "S",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+
+# ─────────────────────────────────────────────────────────────────
+# pytest
+# ─────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["apps"]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+addopts = [
+    "-ra",
+    "--strict-config",
+    "--strict-markers",
+    "--reuse-db",
+]
+filterwarnings = [
+    "error",
+]
