@@ -2,6 +2,7 @@ import { NavLink, useParams, useNavigate } from 'react-router-dom'
 import { useCommandPaletteStore } from '../hooks/useCommandPalette'
 import useAuthStore from '../store/authStore'
 import Avatar from './ui/Avatar'
+import { modKey } from '../lib/platform'
 
 const navBase = (isActive) => ({
   display: 'flex', alignItems: 'center', gap: '8px',
@@ -50,7 +51,7 @@ export default function Sidebar({ projects = [], collapsed, onToggle, mobileOpen
               <span style={{ fontSize: '13px' }}>🔍</span>
               검색 / 이동
             </span>
-            <kbd style={{ fontSize: '10px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '3px', padding: '1px 5px', color: 'var(--text-muted)' }}>⌘K</kbd>
+            <kbd style={{ fontSize: '10px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '3px', padding: '1px 5px', color: 'var(--text-muted)' }}>{modKey()}K</kbd>
           </button>
         </div>
       )}

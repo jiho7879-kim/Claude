@@ -1,14 +1,16 @@
 import { useState } from 'react'
+import { modKey } from '../lib/platform'
 
+const Mod = modKey()
 const SHORTCUTS = [
-  { keys: ['⌘', 'K'],       desc: '커맨드 팔레트 열기' },
+  { keys: [Mod, 'K'],       desc: '커맨드 팔레트 열기' },
   { keys: ['G', 'W'],        desc: '워크스페이스 목록' },
   { keys: ['G', 'P'],        desc: '프로젝트 목록' },
   { keys: ['G', 'C'],        desc: '캘린더' },
   { keys: ['G', 'M'],        desc: '멤버' },
   { keys: ['G', 'S'],        desc: '스프린트' },
   { keys: ['Esc'],           desc: '닫기 / 포커스 해제' },
-  { keys: ['⌘', 'Enter'],   desc: '댓글 전송' },
+  { keys: [Mod, 'Enter'],   desc: '댓글 전송' },
 ]
 
 export default function ShortcutHint() {

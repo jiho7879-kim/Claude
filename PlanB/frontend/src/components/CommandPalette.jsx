@@ -5,11 +5,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useCommandPaletteStore } from '../hooks/useCommandPalette'
 import { getTasks, getProjects, getWorkspaces, createTask } from '../lib/workspaceApi'
 import useAuthStore from '../store/authStore'
+import { modKey } from '../lib/platform'
 
 // ─── Shortcut Overlay ─────────────────────────────────────────────────────────
 const SHORTCUTS = [
   { category: '전역', items: [
-    { key: '⌘K', desc: '커맨드 팔레트 열기' },
+    { key: `${modKey()}K`, desc: '커맨드 팔레트 열기' },
     { key: '?', desc: '단축키 도움말' },
     { key: 'G → D', desc: '대시보드' },
     { key: 'G → C', desc: '캘린더' },
