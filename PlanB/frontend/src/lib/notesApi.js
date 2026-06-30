@@ -19,6 +19,9 @@ export const updateNote = (slug, id, data) =>
 export const deleteNote = (slug, id) =>
   api.delete(`${base(slug)}${id}/`)
 
+export const getNoteBacklinks = (slug, id) =>
+  api.get(`${base(slug)}${id}/backlinks/`).then(r => r.data)
+
 export const getFolders = (slug) =>
   api.get(folderBase(slug)).then(r => r.data)
 

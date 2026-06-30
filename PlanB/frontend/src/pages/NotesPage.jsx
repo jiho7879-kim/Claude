@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
-import { getNotes, createNote, updateNote, deleteNote, getFolders, createFolder, updateFolder, deleteFolder } from '../lib/notesApi'
+import { getNotes, createNote, updateNote, deleteNote, getFolders, createFolder, updateFolder, deleteFolder, getNoteBacklinks } from '../lib/notesApi'
 import { noteAiAction } from '../lib/aiApi'
 
 const SAVE_DELAY = 800
@@ -202,8 +202,11 @@ export default function NotesPage() {
   const [saving, setSaving] = useState(false)
   const [preview, setPreview] = useState(false)
   const [showAI, setShowAI] = useState(false)
+  const [showBacklinks, setShowBacklinks] = useState(false)
+  const [backlinks, setBacklinks] = useState([])
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [folderOpen, setFolderOpen] = useState(true)
+  const [tagInput, setTagInput] = useState('')
   const saveTimer = useRef(null)
   const editorRef = useRef(null)
   const previewRef = useRef(null)
@@ -215,9 +218,25 @@ export default function NotesPage() {
 
   useEffect(() => { loadAll() }, [loadAll])
 
+  // 현재 노트의 backlinks 로드
+  useEffect(() => {
+    if (active?.title) {
+      getNoteBacklinks(slug, active.id).then(setBacklinks).catch(() => setBacklinks([]))
+    } else {
+      setBacklinks([])
+    }
+  }, [slug, active?.id, active?.title])
+
   // 폴더/검색 필터링된 노트 목록
   const filteredNotes = useMemo(() => {
-    if (search) return notes.filter(n => n.title?.toLowerCase().includes(search.toLowerCase()) || n.content?.toLowerCase().includes(search.toLowerCase()))
+    if (search) {
+      const q = search.toLowerCase()
+      return notes.filter(n =>
+        n.title?.toLowerCase().includes(q) ||
+        n.content?.toLowerCase().includes(q) ||
+        (n.tags || []).some(t => t.toLowerCase().includes(q))
+      )
+    }
     if (selectedFolder === 'root') return notes.filter(n => !n.folder)
     if (selectedFolder) return notes.filter(n => n.folder === selectedFolder)
     return notes
@@ -284,6 +303,27 @@ export default function NotesPage() {
     const updated = await updateNote(slug, active.id, { folder: folderId || null })
     setNotes(prev => prev.map(n => n.id === updated.id ? updated : n))
     setActive(updated)
+  }
+
+  const handleTagRemove = async (tag) => {
+    if (!active) return
+    const newTags = (active.tags || []).filter(t => t !== tag)
+    const saved = await updateNote(slug, active.id, { tags: newTags })
+    setNotes(prev => prev.map(n => n.id === saved.id ? saved : n))
+    setActive(saved)
+  }
+
+  const handleTagAdd = async () => {
+    const raw = tagInput.trim()
+    if (!raw || !active) return
+    const t = raw.replace(/\s+/g, '-')  // 공백 → - 자동변환
+    const current = active.tags || []
+    if (current.includes(t)) { setTagInput(''); return }
+    const newTags = [...current, t]
+    const saved = await updateNote(slug, active.id, { tags: newTags })
+    setNotes(prev => prev.map(n => n.id === saved.id ? saved : n))
+    setActive(saved)
+    setTagInput('')
   }
 
   const handleAIApply = useCallback(async ({ content, tags }) => {
@@ -574,6 +614,16 @@ export default function NotesPage() {
                 </span>
                 <span style={{ flexShrink: 0, marginLeft: 4 }}>{formatDate(note.updated_at)}</span>
               </div>
+              {(note.tags || []).length > 0 && (
+                <div style={{ fontSize: 10, marginTop: 2, display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                  {(note.tags || []).slice(0, 2).map(t => (
+                    <span key={t} style={{ color: 'var(--accent)', opacity: 0.7 }}>#{t}</span>
+                  ))}
+                  {(note.tags || []).length > 2 && (
+                    <span style={{ color: 'var(--text-muted)', opacity: 0.5 }}>+{note.tags.length - 2}</span>
+                  )}
+                </div>
+              )}
               {note.folder_name && !search && selectedFolder === null && (
                 <div style={{ fontSize: 10, color: 'var(--accent)', marginTop: 2, opacity: 0.7 }}>📁 {note.folder_name}</div>
               )}
@@ -612,20 +662,36 @@ export default function NotesPage() {
               <button onClick={() => setShowAI(v => !v)} style={{ padding: '3px 9px', background: showAI ? 'rgba(99,102,241,0.12)' : 'var(--bg-elevated)', border: `1px solid ${showAI ? 'var(--border-focus)' : 'var(--border)'}`, borderRadius: 5, fontSize: 11, cursor: 'pointer', color: showAI ? 'var(--accent)' : 'var(--text-secondary)' }}>
                 🤖 AI
               </button>
+              <button onClick={() => setShowBacklinks(v => !v)} style={{ padding: '3px 9px', background: showBacklinks ? 'rgba(99,102,241,0.12)' : 'var(--bg-elevated)', border: `1px solid ${showBacklinks ? 'var(--border-focus)' : 'var(--border)'}`, borderRadius: 5, fontSize: 11, cursor: 'pointer', color: showBacklinks ? 'var(--accent)' : 'var(--text-muted)' }}>
+                🔗 {backlinks.length > 0 && <span style={{ marginLeft: 2, fontSize: 10 }}>{backlinks.length}</span>}
+              </button>
               <button onClick={() => handlePin(active)} style={{ padding: '3px 8px', background: active.is_pinned ? 'rgba(99,102,241,0.1)' : 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 5, fontSize: 11, cursor: 'pointer', color: active.is_pinned ? 'var(--accent)' : 'var(--text-muted)' }}>
                 {active.is_pinned ? '📌' : '📌'}
               </button>
               <button onClick={() => setDeleteConfirm(active)} style={{ padding: '3px 8px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 5, fontSize: 11, cursor: 'pointer', color: 'var(--text-muted)' }}>🗑</button>
             </div>
 
-            {/* 태그 표시 */}
-            {active.tags?.length > 0 && (
-              <div style={{ padding: '5px 16px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 5, flexWrap: 'wrap', background: 'var(--bg-surface)', flexShrink: 0 }}>
-                {active.tags.map(t => (
-                  <span key={t} style={{ padding: '1px 7px', background: 'var(--accent-muted)', border: '1px solid var(--border-focus)', borderRadius: 10, fontSize: 11, color: 'var(--accent)' }}>#{t}</span>
-                ))}
-              </div>
-            )}
+            {/* 태그 편집 */}
+            <div style={{ padding: '4px 16px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center', background: 'var(--bg-surface)', flexShrink: 0 }}>
+              {(active.tags || []).map(t => (
+                <span key={t}
+                  onClick={() => { setSearch(t); setSelectedFolder(null) }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 3px 1px 8px', background: 'var(--accent-muted)', border: '1px solid var(--border-focus)', borderRadius: 10, fontSize: 11, color: 'var(--accent)', cursor: 'pointer' }}
+                  title="이 태그로 검색">
+                  #{t}
+                  <button onClick={e => { e.stopPropagation(); handleTagRemove(t) }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: 12, lineHeight: 1, padding: '0 1px', opacity: 0.6 }}
+                    title="태그 삭제">×</button>
+                </span>
+              ))}
+              <input
+                value={tagInput}
+                onChange={e => setTagInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleTagAdd(); if (e.key === 'Escape') setTagInput('') }}
+                placeholder={!(active.tags || []).length ? '태그 입력 후 Enter...' : '+태그'}
+                style={{ minWidth: 48, maxWidth: 120, border: 'none', outline: 'none', background: 'transparent', fontSize: 11, color: 'var(--text-secondary)', padding: '2px 4px' }}
+              />
+            </div>
 
             {/* 편집 or 미리보기 */}
             <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -690,6 +756,27 @@ export default function NotesPage() {
 
             {/* AI 패널 */}
             {showAI && <NoteAIPanel note={active} slug={slug} onApply={handleAIApply} />}
+
+            {/* Backlinks 패널 */}
+            {showBacklinks && backlinks.length > 0 && (
+              <div style={{ flexShrink: 0, maxHeight: 200, overflowY: 'auto', borderTop: '1px solid var(--border)', background: 'var(--bg-surface)', padding: '8px 14px' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>🔗 이 노트를 참조한 노트 ({backlinks.length})</div>
+                {backlinks.map(b => (
+                  <div key={b.note_id}
+                    onClick={() => {
+                      const target = notes.find(n => n.id === b.note_id)
+                      if (target) setActive(target)
+                    }}
+                    style={{ padding: '4px 8px', borderRadius: 6, cursor: 'pointer', fontSize: 12, color: 'var(--text-primary)', marginBottom: 2 }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <div style={{ fontWeight: 500 }}>{b.title}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.excerpt}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         ) : (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
