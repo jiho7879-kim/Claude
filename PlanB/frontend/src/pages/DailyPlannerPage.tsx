@@ -168,6 +168,7 @@ export default function DailyPlannerPage() {
   const [newHabitName, setNewHabitName] = useState('')
   const [addingHabit, setAddingHabit]   = useState(false)
   const [expandedHabit, setExpandedHabit] = useState(null)
+  const [heatmapVersion, setHeatmapVersion] = useState(0)
   const [projectTasks, setProjectTasks] = useState([])
   const [journalStreak, setJournalStreak] = useState(0)
   const [weekMoods, setWeekMoods]       = useState({})
@@ -184,8 +185,10 @@ export default function DailyPlannerPage() {
   const loadMeta = useCallback(async () => {
     try {
       const sixtyAgo = toIso(new Date(Date.now() - 60 * 86400000))
-      const weekDates = getWeekDates()
-      const firstDay = new Date(weekDates[0] + 'T00:00:00')
+      const sd = new Date(selectedDate + 'T00:00:00')
+      const mon = new Date(sd)
+      mon.setDate(sd.getDate() - ((sd.getDay() + 6) % 7))
+      const firstDay = mon
       const tmp = new Date(Date.UTC(firstDay.getFullYear(), firstDay.getMonth(), firstDay.getDate()))
       tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7))
       const isoWeek = Math.ceil((((tmp.getTime() - new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1)).getTime()) / 86400000) + 1) / 7)
@@ -331,6 +334,7 @@ export default function DailyPlannerPage() {
   const handleToggleHabit = async (habit) => {
     const was = habit.logged_today
     setHabits(p => p.map(h => h.id === habit.id ? { ...h, logged_today: !was, streak: was ? Math.max(0, h.streak - 1) : h.streak + 1 } : h))
+    setHeatmapVersion(v => v + 1)
     try { await toggleHabitLog(slug, habit.id, selectedDate) }
     catch {
       setHabits(p => p.map(h => h.id === habit.id ? { ...h, logged_today: was } : h))
@@ -568,7 +572,7 @@ export default function DailyPlannerPage() {
                     </div>
                     {expandedHabit?.id === habit.id && (
                       <div style={{ padding: '0 4px 10px' }}>
-                        <HabitHeatmap slug={slug} habit={habit} selectedDate={selectedDate} />
+                        <HabitHeatmap slug={slug} habit={habit} selectedDate={selectedDate} version={heatmapVersion} />
                       </div>
                     )}
                   </div>

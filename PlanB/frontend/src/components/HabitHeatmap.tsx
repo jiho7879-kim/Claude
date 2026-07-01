@@ -21,7 +21,7 @@ function getMondayOf(dateStr) {
   return toIso(d)
 }
 
-export default function HabitHeatmap({ slug, habit, selectedDate }) {
+export default function HabitHeatmap({ slug, habit, selectedDate, version = 0 }) {
   const [logSet, setLogSet] = useState(new Set())
   const [loading, setLoading] = useState(true)
 
@@ -36,7 +36,7 @@ export default function HabitHeatmap({ slug, habit, selectedDate }) {
       .then(dates => setLogSet(new Set(dates.map(d => String(d)))))
       .catch(() => setLogSet(new Set()))
       .finally(() => setLoading(false))
-  }, [slug, habit?.id, selectedDate])
+  }, [slug, habit?.id, selectedDate, version])
 
   if (!habit) return null
   if (loading) return <div style={{ fontSize:11, color:'var(--text-muted)', padding:'8px 0' }}>로딩 중...</div>

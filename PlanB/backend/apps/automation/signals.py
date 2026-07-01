@@ -8,7 +8,7 @@ def _capture_old_task(sender, instance, **kwargs):
         try:
             old = sender.objects.get(pk=instance.pk)
             instance._pre_save_snapshot = {
-                "status":   old.status,
+                "status": old.status,
                 "priority": old.priority,
                 "assignee": old.assignee_id,
             }
@@ -20,7 +20,12 @@ def _capture_old_task(sender, instance, **kwargs):
 
 @receiver(post_save, sender="tasks.Task")
 def _run_automation_rules(sender, instance, created, **kwargs):
-    from .executor import run_rules
+    from .executor import _reentrant_guard, run_rules
+
+    # Do not re-enter when _execute saves the task — the direct
+    # run_rules call from _execute already handles cascading.
+    if getattr(_reentrant_guard, "active", False):
+        return
 
     changed = {}
     if created:

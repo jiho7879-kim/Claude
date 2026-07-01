@@ -4,7 +4,7 @@ import Sidebar from './Sidebar'
 import NotificationCenter from './NotificationCenter'
 import ToastContainer from './ui/Toast'
 import AIChatDrawer from './AIChatDrawer'
-import { getProjects, getTasks } from '../lib/workspaceApi'
+import { getProjects } from '../lib/workspaceApi'
 import useProjectStore from '../store/projectStore'
 import useNotificationStore from '../store/notificationStore'
 
@@ -27,25 +27,20 @@ export default function Layout({ children }) {
     if (!slug) return
     getProjects(slug).then(projs => {
       setProjects(projs)
-      if (seededSlug.current === slug) return
-      seededSlug.current = slug
-      store.initWorkspace(slug)
-      const today = new Date(); today.setHours(0,0,0,0)
-      const soon = new Date(today); soon.setDate(soon.getDate() + 2)
-      projs.forEach(p => {
-        getTasks(slug, p.id, { tree: false }).then(tasks => {
-          tasks.forEach(t => {
-            if (!t.due_date || t.status === 'done') return
-            const due = new Date(t.due_date)
-            if (due < today) {
-              store.add(slug, { type:'due_soon', message:`"${t.title}" 마감일이 지났습니다`, sub:`${p.name} · ${t.due_date}`, related_object_type:'task', related_object_id:t.id })
-            } else if (due <= soon) {
-              store.add(slug, { type:'due_soon', message:`"${t.title}" 마감이 2일 이내입니다`, sub:`${p.name} · ${t.due_date}`, related_object_type:'task', related_object_id:t.id })
-            }
-          })
-        }).catch(() => {})
-      })
     }).catch(() => {})
+  }, [slug])
+
+  // Poll for notifications every 30s; backend post_save signal creates them
+  useEffect(() => {
+    if (!slug) return
+    if (seededSlug.current === slug) return
+    seededSlug.current = slug
+    store.initWorkspace(slug)
+    const interval = setInterval(() => store.refresh(), 30_000)
+    return () => {
+      clearInterval(interval)
+      seededSlug.current = null
+    }
   }, [slug])
 
   useEffect(() => {
@@ -107,6 +102,7 @@ export default function Layout({ children }) {
         <button
           onClick={() => setAiOpen(true)}
           title="AI 비서 열기"
+          className="ai-float-btn"
           style={{
             position: 'fixed', bottom: 80, right: 20, width: 48, height: 48,
             borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',

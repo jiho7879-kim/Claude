@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { getProjects, getTasks, getEvents, getSprints, getSprintStats, updateTask } from '../lib/workspaceApi'
-import { getBlocks, patchBlock } from '../lib/plannerApi'
+import { getBlocks, getEntries, patchBlock } from '../lib/plannerApi'
 import { dailyInsight } from '../lib/aiApi'
 import useAuthStore from '../store/authStore'
 import useToastStore from '../store/toastStore'
@@ -201,13 +201,24 @@ function ProjectHealthPanel({ projects, allTasks, slug }) {
 }
 
 // ─── Activity Heatmap ─────────────────────────────────────────────────────────
-function buildHeatmap(allTasks) {
+function buildHeatmap(allTasks, plannerEntries, user) {
   const counts = {}
+  // Count task completions by the current user
   for (const t of allTasks) {
     if (t.status !== 'done' || !t.updated_at) continue
+    const aid = t.assignee?.id ?? t.assignee
+    if (aid !== user?.id) continue
     const d = new Date(t.updated_at)
     const key = isoDate(d)
     counts[key] = (counts[key] || 0) + 1
+  }
+  // Count planner block completions (user's own entries)
+  for (const entry of plannerEntries) {
+    if (!entry.time_blocks) continue
+    const doneBlocks = entry.time_blocks.filter(b => b.is_done)
+    if (doneBlocks.length === 0) continue
+    const key = isoDate(new Date(entry.date + 'T00:00:00'))
+    counts[key] = (counts[key] || 0) + doneBlocks.length
   }
   const today = new Date(); today.setHours(0,0,0,0)
   const cells = []
@@ -228,8 +239,8 @@ function heatLevel(count) {
   return 4
 }
 
-function ActivityHeatmap({ allTasks }) {
-  const weeks = useMemo(() => buildHeatmap(allTasks), [allTasks])
+function ActivityHeatmap({ allTasks, plannerEntries, user }) {
+  const weeks = useMemo(() => buildHeatmap(allTasks, plannerEntries, user), [allTasks, plannerEntries, user])
   return (
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -579,6 +590,7 @@ export default function DashboardPage() {
   const [events, setEvents] = useState([])
   const [activeSprints, setActiveSprints] = useState([])
   const [todayBlocks, setTodayBlocks] = useState([])
+  const [plannerEntries, setPlannerEntries] = useState([])
 
   useEffect(() => {
     if (!slug) return
@@ -598,6 +610,7 @@ export default function DashboardPage() {
       setActiveSprints(sprintResults.flat())
       const today = new Date().toISOString().slice(0, 10)
       getBlocks(slug, today).then(setTodayBlocks).catch(() => {})
+      getEntries(slug, {}).then(setPlannerEntries).catch(() => {})
     }).catch(() => toast('데이터 로드 실패', 'error')).finally(() => setLoading(false))
   }, [slug])
 
@@ -654,7 +667,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <ActivityHeatmap allTasks={allTasks} />
+      <ActivityHeatmap allTasks={allTasks} plannerEntries={plannerEntries} user={user} />
     </div>
   )
 }

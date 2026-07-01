@@ -18,7 +18,7 @@ const SUGGESTIONS = [
 ]
 
 function ActionBadge({ action }) {
-  const ICONS = { create_task: '✅', create_note: '📝', update_note: '✏️', create_time_block: '⏰', create_event: '📅' }
+  const ICONS = { create_task: '✅', update_task: '🔄', create_note: '📝', update_note: '✏️', create_time_block: '⏰', create_event: '📅', checklist_read: '📋', checklist_add: '☑️' }
   const icon = ICONS[action.type] || '✨'
   return (
     <div style={{

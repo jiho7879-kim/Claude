@@ -13,10 +13,10 @@ from .serializers import (
     DailyEntrySerializer,
     HabitCreateSerializer,
     HabitSerializer,
-    WeeklyReviewCreateSerializer,
-    WeeklyReviewSerializer,
     TimeBlockCreateSerializer,
     TimeBlockSerializer,
+    WeeklyReviewCreateSerializer,
+    WeeklyReviewSerializer,
 )
 
 
@@ -27,7 +27,9 @@ def _get_workspace(slug, user):
 class DailyEntryListCreateView(APIView):
     def get(self, request, workspace_slug):
         ws = _get_workspace(workspace_slug, request.user)
-        entries = DailyEntry.objects.filter(user=request.user, workspace=ws).prefetch_related("time_blocks")
+        entries = DailyEntry.objects.filter(user=request.user, workspace=ws).prefetch_related(
+            "time_blocks"
+        )
         return Response(DailyEntrySerializer(entries, many=True).data)
 
     def post(self, request, workspace_slug):
@@ -50,12 +52,27 @@ class DailyEntryListCreateView(APIView):
 class DailyEntryDetailView(APIView):
     def get(self, request, workspace_slug, entry_date):
         ws = _get_workspace(workspace_slug, request.user)
-        entry = get_object_or_404(DailyEntry, user=request.user, workspace=ws, date=entry_date)
+        entry = DailyEntry.objects.filter(user=request.user, workspace=ws, date=entry_date).first()
+        if not entry:
+            return Response(
+                {
+                    "date": entry_date,
+                    "journal": "",
+                    "mood": "",
+                    "energy": None,
+                    "emotion_tags": [],
+                    "gratitude": [],
+                    "one_liner": "",
+                    "time_blocks": [],
+                }
+            )
         return Response(DailyEntrySerializer(entry).data)
 
     def patch(self, request, workspace_slug, entry_date):
         ws = _get_workspace(workspace_slug, request.user)
-        entry, _ = DailyEntry.objects.get_or_create(user=request.user, workspace=ws, date=entry_date)
+        entry, _ = DailyEntry.objects.get_or_create(
+            user=request.user, workspace=ws, date=entry_date
+        )
         serializer = DailyEntryCreateSerializer(entry, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -84,8 +101,11 @@ class TimeBlockDetailView(APIView):
     def patch(self, request, workspace_slug, entry_date, block_id):
         ws = _get_workspace(workspace_slug, request.user)
         block = get_object_or_404(
-            TimeBlock, id=block_id, daily_entry__user=request.user,
-            daily_entry__workspace=ws, daily_entry__date=entry_date
+            TimeBlock,
+            id=block_id,
+            daily_entry__user=request.user,
+            daily_entry__workspace=ws,
+            daily_entry__date=entry_date,
         )
         serializer = TimeBlockCreateSerializer(block, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -95,8 +115,11 @@ class TimeBlockDetailView(APIView):
     def delete(self, request, workspace_slug, entry_date, block_id):
         ws = _get_workspace(workspace_slug, request.user)
         block = get_object_or_404(
-            TimeBlock, id=block_id, daily_entry__user=request.user,
-            daily_entry__workspace=ws, daily_entry__date=entry_date
+            TimeBlock,
+            id=block_id,
+            daily_entry__user=request.user,
+            daily_entry__workspace=ws,
+            daily_entry__date=entry_date,
         )
         block.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -105,7 +128,9 @@ class TimeBlockDetailView(APIView):
 class HabitListCreateView(APIView):
     def get(self, request, workspace_slug):
         ws = _get_workspace(workspace_slug, request.user)
-        habits = Habit.objects.filter(user=request.user, workspace=ws, is_active=True).prefetch_related("logs")
+        habits = Habit.objects.filter(
+            user=request.user, workspace=ws, is_active=True
+        ).prefetch_related("logs")
         return Response(HabitSerializer(habits, many=True).data)
 
     def post(self, request, workspace_slug):
@@ -147,11 +172,12 @@ class HabitLogToggleView(APIView):
 
 class HabitLogsRangeView(APIView):
     """Return HabitLog dates for a habit within a date range."""
+
     def get(self, request, workspace_slug, habit_id):
         ws = _get_workspace(workspace_slug, request.user)
         habit = get_object_or_404(Habit, id=habit_id, user=request.user, workspace=ws)
         start = request.query_params.get("start")
-        end   = request.query_params.get("end")
+        end = request.query_params.get("end")
         qs = habit.logs.filter(is_done=True)
         if start:
             qs = qs.filter(date__gte=start)
@@ -162,16 +188,17 @@ class HabitLogsRangeView(APIView):
 
 class WeekEntriesView(APIView):
     """Return all DailyEntry records for a given ISO year/week, plus habit logs."""
+
     def get(self, request, workspace_slug, year, week):
-        from datetime import timedelta
         import datetime as dt
+        from datetime import timedelta
+
         ws = _get_workspace(workspace_slug, request.user)
         # ISO week Monday
         monday = dt.date.fromisocalendar(int(year), int(week), 1)
         sunday = monday + timedelta(days=6)
         entries = DailyEntry.objects.filter(
-            user=request.user, workspace=ws,
-            date__gte=monday, date__lte=sunday
+            user=request.user, workspace=ws, date__gte=monday, date__lte=sunday
         ).prefetch_related("time_blocks")
         return Response(DailyEntrySerializer(entries, many=True).data)
 
@@ -179,7 +206,9 @@ class WeekEntriesView(APIView):
 class WeeklyReviewDetailView(APIView):
     def get(self, request, workspace_slug, year, week):
         ws = _get_workspace(workspace_slug, request.user)
-        review = WeeklyReview.objects.filter(user=request.user, workspace=ws, year=year, week=week).first()
+        review = WeeklyReview.objects.filter(
+            user=request.user, workspace=ws, year=year, week=week
+        ).first()
         if not review:
             return Response({})
         return Response(WeeklyReviewSerializer(review).data)

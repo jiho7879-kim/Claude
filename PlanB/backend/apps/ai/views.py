@@ -1,15 +1,15 @@
+import datetime
 import json
 import logging
 import os
 import re
 import uuid
-import datetime
 
+from django.db import models
+from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from django.db import models
-from django.utils import timezone
 
 from .agents import execute_agent, route_request
 from .prompts import CHAT_SYSTEM, NOTE_AI_SYSTEMS
@@ -23,7 +23,6 @@ from apps.projects.models import Project
 from apps.tasks.models import Task
 from apps.workspaces.models import Workspace
 
-
 # Priority: stable models first, preview models excluded for production reliability.
 # gemini-3.5-flash: best balance (speed/cost/agentic) — primary
 # gemini-3.1-flash-lite: ultra-fast cost-efficient stable fallback
@@ -33,10 +32,20 @@ _GEMINI_MODELS = [
     "gemini-3.1-flash-lite",
     "gemini-2.5-flash",
 ]
-def _try_gemini(prompt: str, system: str, require_json: bool = False, model: str = None) -> tuple[str, str]:
+
+
+def _try_gemini(
+    prompt: str, system: str, require_json: bool = False, model: str = None
+) -> tuple[str, str]:
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     key_hint = (api_key[:6] + "..." + api_key[-4:]) if len(api_key) > 10 else "(short/empty)"
-    logger.info("[GEMINI] API key hint: %s (len=%d) json=%s model=%s", key_hint, len(api_key), require_json, model or "(auto)")
+    logger.info(
+        "[GEMINI] API key hint: %s (len=%d) json=%s model=%s",
+        key_hint,
+        len(api_key),
+        require_json,
+        model or "(auto)",
+    )
     if not api_key:
         raise ValueError("GEMINI_API_KEY 없음")
     try:
@@ -68,7 +77,9 @@ def _try_gemini(prompt: str, system: str, require_json: bool = False, model: str
                 # When called with a specific model, don't fall through to others
                 raise
             if "429" in err_str or "503" in err_str:
-                logger.warning("[GEMINI] 429/503 quota/exhaustion hit, skipping remaining Gemini models")
+                logger.warning(
+                    "[GEMINI] 429/503 quota/exhaustion hit, skipping remaining Gemini models"
+                )
                 break
             if "404" not in err_str:
                 raise
@@ -160,7 +171,9 @@ def _gemini(prompt: str, system: str = "", require_json: bool = False) -> tuple[
     require_json=True 시 Gemini response_mime_type=application/json +
     DeepSeek/Groq response_format=json_object 적용.
     """
-    system_text = system or "당신은 친절한 프로젝트 관리 어시스턴트입니다. 항상 한국어로 답변하세요."
+    system_text = (
+        system or "당신은 친절한 프로젝트 관리 어시스턴트입니다. 항상 한국어로 답변하세요."
+    )
     errors = []
     try:
         text, model = _try_gemini(prompt, system_text, require_json=require_json)
@@ -191,8 +204,8 @@ def _extract_json(raw: str) -> dict | None:
     text = raw.strip()
     # Strip markdown code fences
     if text.startswith("```"):
-        text = re.sub(r'^```(?:json)?\s*', '', text)
-        text = re.sub(r'\s*```\s*$', '', text)
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```\s*$", "", text)
         text = text.strip()
     # Try direct parse
     try:
@@ -200,7 +213,7 @@ def _extract_json(raw: str) -> dict | None:
     except Exception:
         pass
     # Find the first complete {...} block
-    match = re.search(r'\{[\s\S]*?\}', text)
+    match = re.search(r"\{[\s\S]*?\}", text)
     if match:
         try:
             return json.loads(match.group())
@@ -271,6 +284,7 @@ def weekly_summary(request, workspace_slug: str):
         return Response({"error": "workspace not found"}, status=404)
 
     import datetime
+
     projects = Project.objects.filter(workspace=workspace)
     task_qs = Task.objects.filter(project__workspace=workspace)
     total = task_qs.count()
@@ -292,14 +306,19 @@ def weekly_summary(request, workspace_slug: str):
         pct = round(done / total * 100) if total > 0 else 0
         summary = (
             f"이번 주 전체 {total}개 태스크 중 {done}개({pct}%)를 완료했습니다. "
-            + (f"{in_progress}개가 진행 중" + (f"이며 {overdue}개가 기한을 초과했습니다." if overdue else "입니다."))
+            + (
+                f"{in_progress}개가 진행 중"
+                + (f"이며 {overdue}개가 기한을 초과했습니다." if overdue else "입니다.")
+            )
             + " 꾸준한 노력이 빛을 발하고 있어요! 🚀"
         )
 
-    return Response({
-        "summary": summary,
-        "stats": {"total": total, "done": done, "in_progress": in_progress, "overdue": overdue},
-    })
+    return Response(
+        {
+            "summary": summary,
+            "stats": {"total": total, "done": done, "in_progress": in_progress, "overdue": overdue},
+        }
+    )
 
 
 _INTENT_KEYWORDS = {
@@ -366,7 +385,9 @@ def _build_workspace_context(workspace, user, message=""):
         for t in tasks:
             due = t["due_date"] or "미정"
             flag = " ⚠️마감초과" if t["due_date"] and t["due_date"] < today else ""
-            lines.append(f"  - ID:{t['id']} [{t['project__name']}] {t['title']} | {t['status']} | 우선순위:{t['priority']} | 마감:{due}{flag}")
+            lines.append(
+                f"  - ID:{t['id']} [{t['project__name']}] {t['title']} | {t['status']} | 우선순위:{t['priority']} | 마감:{due}{flag}"
+            )
         lines.append("")
 
     if "calendar" in sections:
@@ -377,7 +398,9 @@ def _build_workspace_context(workspace, user, message=""):
         )
         lines.append(f"[예정 일정] ({len(events)}개)")
         for e in events:
-            lines.append(f"  - ID:{e['id']} {e['title']} | {e['start_at'].strftime('%Y-%m-%d %H:%M')}~{e['end_at'].strftime('%H:%M')}")
+            lines.append(
+                f"  - ID:{e['id']} {e['title']} | {e['start_at'].strftime('%Y-%m-%d %H:%M')}~{e['end_at'].strftime('%H:%M')}"
+            )
         lines.append("")
 
     if "planner" in sections:
@@ -405,7 +428,9 @@ def _build_workspace_context(workspace, user, message=""):
         for n in notes:
             preview = n["content"][:120].replace("\n", " ")
             tags_str = " ".join(f"#{t}" for t in (n["tags"] or []))
-            lines.append(f"  - ID:{n['id']} 제목:{n['title'] or '제목없음'} | {preview}{(' ' + tags_str) if tags_str else ''}")
+            lines.append(
+                f"  - ID:{n['id']} 제목:{n['title'] or '제목없음'} | {preview}{(' ' + tags_str) if tags_str else ''}"
+            )
         lines.append("")
 
     return "\n".join(lines).strip(), projects
@@ -423,7 +448,9 @@ def chat(request, workspace_slug: str):
     if not message:
         return Response({"error": "message is required"}, status=400)
 
-    logger.info("[CHAT:%s] user=%s slug=%s msg=%r", req_id, request.user, workspace_slug, message[:80])
+    logger.info(
+        "[CHAT:%s] user=%s slug=%s msg=%r", req_id, request.user, workspace_slug, message[:80]
+    )
 
     try:
         workspace = Workspace.objects.get(slug=workspace_slug, members__user=request.user)
@@ -456,9 +483,21 @@ def chat(request, workspace_slug: str):
         err = str(e)
         logger.error("[CHAT:%s] AI error: %s", req_id, err[:300])
         if "429" in err:
-            return Response({"reply": "⚠️ AI 서비스 할당량이 초과되었습니다. 잠시 후 다시 시도해주세요.", "actions": [], "model": None})
+            return Response(
+                {
+                    "reply": "⚠️ AI 서비스 할당량이 초과되었습니다. 잠시 후 다시 시도해주세요.",
+                    "actions": [],
+                    "model": None,
+                }
+            )
         if "503" in err:
-            return Response({"reply": "⚠️ AI 서비스가 현재 혼잡합니다. 잠시 후 다시 시도해주세요.", "actions": [], "model": None})
+            return Response(
+                {
+                    "reply": "⚠️ AI 서비스가 현재 혼잡합니다. 잠시 후 다시 시도해주세요.",
+                    "actions": [],
+                    "model": None,
+                }
+            )
         if "요금이 부족" in err:
             return Response({"reply": f"⚠️ {err}", "actions": [], "model": None})
         if "Rate Limit" in err:
@@ -494,12 +533,14 @@ def chat(request, workspace_slug: str):
                     created_by=request.user,
                     status="todo",
                 )
-                executed.append({
-                    "type": "create_task",
-                    "label": f"태스크 생성됨: [{project.name}] {task.title}",
-                    "id": task.id,
-                    "project_id": project.id,
-                })
+                executed.append(
+                    {
+                        "type": "create_task",
+                        "label": f"태스크 생성됨: [{project.name}] {task.title}",
+                        "id": task.id,
+                        "project_id": project.id,
+                    }
+                )
             elif action.get("type") == "create_note":
                 note = Note.objects.create(
                     workspace=workspace,
@@ -508,11 +549,13 @@ def chat(request, workspace_slug: str):
                     content=action.get("content", ""),
                     tags=action.get("tags", []),
                 )
-                executed.append({
-                    "type": "create_note",
-                    "label": f"노트 저장됨: {note.title or '제목 없음'}",
-                    "id": str(note.id),
-                })
+                executed.append(
+                    {
+                        "type": "create_note",
+                        "label": f"노트 저장됨: {note.title or '제목 없음'}",
+                        "id": str(note.id),
+                    }
+                )
             elif action.get("type") == "create_time_block":
                 entry, _ = DailyEntry.objects.get_or_create(
                     user=request.user, workspace=workspace, date=datetime.date.today()
@@ -526,11 +569,13 @@ def chat(request, workspace_slug: str):
                     end_time=action.get("end_time") or None,
                     order=last_order,
                 )
-                executed.append({
-                    "type": "create_time_block",
-                    "label": f"플래너 등록됨: {block.title}",
-                    "id": str(block.id),
-                })
+                executed.append(
+                    {
+                        "type": "create_time_block",
+                        "label": f"플래너 등록됨: {block.title}",
+                        "id": str(block.id),
+                    }
+                )
             elif action.get("type") == "search_events":
                 qs = CalendarEvent.objects.filter(workspace=workspace).order_by("-start_at")
                 if action.get("keyword"):
@@ -555,18 +600,22 @@ def chat(request, workspace_slug: str):
                     reply = "\n".join(lines)
                 else:
                     reply = f"'{action.get('keyword', '')}' 조건에 맞는 일정이 없습니다."
-                executed.append({
-                    "type": "search_events",
-                    "label": f"일정 검색: {len(results)}개 찾음",
-                    "count": len(results),
-                })
+                executed.append(
+                    {
+                        "type": "search_events",
+                        "label": f"일정 검색: {len(results)}개 찾음",
+                        "count": len(results),
+                    }
+                )
             elif action.get("type") == "create_event":
+
                 def _parse_dt(val):
                     if isinstance(val, datetime.datetime):
                         dt = val
                     else:
                         dt = datetime.datetime.fromisoformat(str(val))
                     return dt if timezone.is_aware(dt) else timezone.make_aware(dt)
+
                 event = CalendarEvent.objects.create(
                     workspace=workspace,
                     title=action.get("title", "새 일정"),
@@ -575,11 +624,13 @@ def chat(request, workspace_slug: str):
                     description=action.get("description", ""),
                     created_by=request.user,
                 )
-                executed.append({
-                    "type": "create_event",
-                    "label": f"일정 등록됨: {event.title} ({event.start_at.strftime('%m/%d %H:%M')})",
-                    "id": event.id,
-                })
+                executed.append(
+                    {
+                        "type": "create_event",
+                        "label": f"일정 등록됨: {event.title} ({event.start_at.strftime('%m/%d %H:%M')})",
+                        "id": event.id,
+                    }
+                )
             elif action.get("type") == "update_note":
                 try:
                     note = Note.objects.get(
@@ -592,17 +643,66 @@ def chat(request, workspace_slug: str):
                     if action.get("tags") is not None:
                         note.tags = action["tags"]
                     note.save()
-                    executed.append({
-                        "type": "update_note",
-                        "label": f"노트 수정됨: {note.title or '제목 없음'}",
-                        "id": str(note.id),
-                    })
+                    executed.append(
+                        {
+                            "type": "update_note",
+                            "label": f"노트 수정됨: {note.title or '제목 없음'}",
+                            "id": str(note.id),
+                        }
+                    )
                 except Note.DoesNotExist:
                     pass
+            elif action.get("type") == "update_task":
+                task = Task.objects.get(id=action["task_id"], project__workspace=workspace)
+                if action.get("title") is not None:
+                    task.title = action["title"]
+                if action.get("status") is not None:
+                    task.status = action["status"]
+                if action.get("priority") is not None:
+                    task.priority = action["priority"]
+                if action.get("due_date") is not None:
+                    task.due_date = action["due_date"]
+                if action.get("description") is not None:
+                    task.description = action["description"]
+                task.save()
+                executed.append(
+                    {
+                        "type": "update_task",
+                        "label": f"태스크 수정됨: {task.title}",
+                        "id": str(task.id),
+                    }
+                )
+            elif action.get("type") == "checklist_read":
+                task = Task.objects.get(id=action["task_id"], project__workspace=workspace)
+                items = task.checklist_items.all().values(
+                    "id", "text", "is_done", "order", "created_at"
+                )
+                executed.append(
+                    {
+                        "type": "checklist_read",
+                        "label": f"체크리스트 조회: {len(items)}개 항목",
+                        "items": list(items),
+                    }
+                )
+            elif action.get("type") == "checklist_add":
+                task = Task.objects.get(id=action["task_id"], project__workspace=workspace)
+                item = task.checklist_items.create(
+                    text=action.get("title", ""),
+                    order=task.checklist_items.count(),
+                )
+                executed.append(
+                    {
+                        "type": "checklist_add",
+                        "label": f"체크리스트 추가됨: {item.text}",
+                        "id": str(item.id),
+                    }
+                )
         except Exception as exc:
             logger.warning("[CHAT:%s] action %s failed: %s", req_id, action.get("type"), exc)
 
-    logger.info("[CHAT:%s] executed=%s model=%s", req_id, [a.get("type") for a in executed], model_label)
+    logger.info(
+        "[CHAT:%s] executed=%s model=%s", req_id, [a.get("type") for a in executed], model_label
+    )
     return Response({"reply": reply, "actions": executed, "model": model_label, "req_id": req_id})
 
 
@@ -628,7 +728,7 @@ def daily_insight(request, workspace_slug: str):
 
     try:
         insight, _ = execute_agent("summary", prompt, system)
-    except Exception as e:
+    except Exception:
         insight = None
 
     return Response({"insight": insight})
@@ -665,8 +765,7 @@ def note_ai_action(request, workspace_slug, note_id):
             clean = result.strip()
             if clean.startswith("```"):
                 clean = clean.split("```")[1]
-                if clean.startswith("json"):
-                    clean = clean[4:]
+                clean = clean.removeprefix("json")
             tags = json.loads(clean.strip())
             if not isinstance(tags, list):
                 raise ValueError

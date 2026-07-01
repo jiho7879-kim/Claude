@@ -342,6 +342,11 @@ input:focus, textarea:focus, select:focus {
   .calendar-main { flex-direction: column; }
   .calendar-mini { display: none !important; }
   .calendar-fc-wrap { padding: 8px 10px !important; }
+
+  /* AI 플로팅 버튼: 모바일 하단 네비게이션(60px)과 겹치지 않도록 상단으로 */
+  .ai-float-btn {
+    bottom: 76px !important;
+  }
 }
 
 /* Skeleton shimmer */

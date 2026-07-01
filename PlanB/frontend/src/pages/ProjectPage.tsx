@@ -264,9 +264,9 @@ const PRIORITY_OPTIONS = ['urgent','high','medium','low']
 const PRIORITY_LABEL   = { urgent:'⚡ 긴급', high:'↑ 높음', medium:'→ 보통', low:'↓ 낮음' }
 
 // ─── Inline Dropdown ──────────────────────────────────────────────────────────
-function InlineDropdown({ options, labelMap, colorMap, current, onSelect, onClose }) {
+function InlineDropdown({ options, labelMap, colorMap, current, onSelect, onClose, upward }) {
   return (
-    <div style={{ position:'absolute', zIndex:200, top:'calc(100% + 4px)', left:0, background:'var(--bg-surface)', border:'1px solid var(--border)', borderRadius:8, boxShadow:'var(--shadow-md)', minWidth:130, overflow:'hidden' }}>
+    <div style={{ position:'absolute', zIndex:200, [upward ? 'bottom' : 'top']: 'calc(100% + 4px)', left:0, background:'var(--bg-surface)', border:'1px solid var(--border)', borderRadius:8, boxShadow:'var(--shadow-md)', minWidth:130, overflow:'hidden' }}>
       {options.map(opt => (
         <div key={opt} onClick={e=>{e.stopPropagation();onSelect(opt);onClose()}}
           style={{ padding:'7px 12px', fontSize:12, cursor:'pointer', background: opt===current ? 'var(--accent-muted)' : 'transparent', color: colorMap?.[opt] || 'var(--text-primary)' }}
@@ -289,11 +289,11 @@ function BulkToolbar({ count, members, onStatus, onPriority, onAssign, onDelete,
       <div style={{ width:1, height:20, background:'var(--border)' }} />
       <div style={{ position:'relative' }}>
         <button onClick={()=>{setShowStatus(v=>!v);setShowPriority(false);setShowAssign(false)}} style={{ padding:'5px 12px', background:'var(--bg-elevated)', border:'1px solid var(--border)', borderRadius:6, color:'var(--text-secondary)', fontSize:12, cursor:'pointer', fontWeight:500 }}>상태 변경</button>
-        {showStatus && <InlineDropdown options={STATUS_OPTIONS} labelMap={STATUS_LABEL} colorMap={undefined} current={null} onSelect={onStatus} onClose={()=>setShowStatus(false)} />}
+        {showStatus && <InlineDropdown upward options={STATUS_OPTIONS} labelMap={STATUS_LABEL} colorMap={undefined} current={null} onSelect={onStatus} onClose={()=>setShowStatus(false)} />}
       </div>
       <div style={{ position:'relative' }}>
         <button onClick={()=>{setShowPriority(v=>!v);setShowStatus(false);setShowAssign(false)}} style={{ padding:'5px 12px', background:'var(--bg-elevated)', border:'1px solid var(--border)', borderRadius:6, color:'var(--text-secondary)', fontSize:12, cursor:'pointer', fontWeight:500 }}>우선순위</button>
-        {showPriority && <InlineDropdown options={PRIORITY_OPTIONS} labelMap={PRIORITY_LABEL} colorMap={PRIORITY_COLOR} current={null} onSelect={onPriority} onClose={()=>setShowPriority(false)} />}
+        {showPriority && <InlineDropdown upward options={PRIORITY_OPTIONS} labelMap={PRIORITY_LABEL} colorMap={PRIORITY_COLOR} current={null} onSelect={onPriority} onClose={()=>setShowPriority(false)} />}
       </div>
       {members?.length > 0 && (
         <div style={{ position:'relative' }}>

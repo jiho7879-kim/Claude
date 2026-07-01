@@ -24,6 +24,7 @@ interface NotificationState {
   unreadCount: number
   slug: string | null
   initWorkspace: (slug: string) => Promise<void>
+  refresh: () => Promise<void>
   add: (slug: string, data: Partial<NotificationItem>) => Promise<void>
   markRead: (id: string) => Promise<void>
   markAllRead: () => Promise<void>
@@ -73,6 +74,21 @@ const useNotificationStore = create<NotificationState>((set, get) => ({
       })
     } catch {
       set({ slug, notifications: [], unreadCount: 0 })
+    }
+  },
+
+  refresh: async () => {
+    const { slug } = get()
+    if (!slug) return
+    try {
+      const data = await getNotifications(slug)
+      const items = (data as Record<string, unknown>[]).map(fromApi)
+      set({
+        notifications: items,
+        unreadCount: items.filter(n => !n.read).length,
+      })
+    } catch {
+      // noop
     }
   },
 

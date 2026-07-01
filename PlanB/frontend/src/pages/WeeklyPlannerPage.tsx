@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import useToastStore from '../store/toastStore'
-import { getHabits, getWeekEntries, getWeekReview, patchWeekReview } from '../lib/plannerApi'
+import { getHabitLogs, getHabits, getWeekEntries, getWeekReview, patchWeekReview } from '../lib/plannerApi'
 import { getProjects, getTasks } from '../lib/workspaceApi'
 
 interface WeekReview {
@@ -50,6 +50,7 @@ export default function WeeklyPlannerPage() {
   const [entries, setEntries] = useState([])
   const [review, setReview] = useState<WeekReview>({})
   const [habits, setHabits] = useState([])
+  const [habitLogs, setHabitLogs] = useState<Record<string, string[]>>({})
   const [weekTasks, setWeekTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const saveTimer = useRef(null)
@@ -74,6 +75,19 @@ export default function WeeklyPlannerPage() {
       setReview(r)
       setHabits(h)
       setPrevReview(pr)
+
+      if (h.length > 0) {
+        const logEntries = await Promise.all(
+          h.map(habit =>
+            getHabitLogs(slug, habit.id, weekDates[0], weekDates[6]).catch(() => [])
+          )
+        )
+        const logMap: Record<string, string[]> = {}
+        h.forEach((habit, i) => { logMap[String(habit.id)] = logEntries[i].map(d => String(d)) })
+        setHabitLogs(logMap)
+      } else {
+        setHabitLogs({})
+      }
 
       const projects = await getProjects(slug).catch(() => [])
       const taskArrays = await Promise.all(
@@ -369,6 +383,42 @@ export default function WeeklyPlannerPage() {
                   style={{ padding:'3px 10px', background:'none', border:'1px solid var(--border)', borderRadius:6, fontSize:11, cursor:'pointer', color:'var(--text-secondary)' }}>
                   일간 플래너 →
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* 습관 트래킹 */}
+          {habits.length > 0 && (
+            <div style={{ flexShrink:0, borderBottom:'1px solid var(--border)', background:'var(--bg-elevated)', padding:'8px 20px' }}>
+              <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', letterSpacing:1, textTransform:'uppercase', marginBottom:6 }}>습관 트래킹</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+                {habits.map(habit => {
+                  const loggedDates = habitLogs[String(habit.id)] || []
+                  const weekCount = weekDates.filter(d => loggedDates.includes(d)).length
+                  return (
+                    <div key={habit.id} style={{ display:'flex', alignItems:'center', gap:6, padding:'2px 0' }}>
+                      <div style={{ width:100, display:'flex', alignItems:'center', gap:5, flexShrink:0 }}>
+                        <span style={{ width:8, height:8, borderRadius:'50%', background:habit.color, flexShrink:0 }} />
+                        <span style={{ fontSize:12, color:'var(--text-secondary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{habit.name}</span>
+                      </div>
+                      <div style={{ display:'flex', gap:3 }}>
+                        {weekDates.map(dateStr => {
+                          const logged = loggedDates.includes(dateStr)
+                          return (
+                            <div key={dateStr} style={{
+                              width:16, height:16, borderRadius:'50%',
+                              background: logged ? habit.color : 'transparent',
+                              border: `2px solid ${logged ? habit.color : 'var(--border)'}`,
+                            }} />
+                          )
+                        })}
+                      </div>
+                      <div style={{ flex:1, textAlign:'right', fontSize:12, fontWeight:600, color: weekCount > 0 ? habit.color : 'var(--text-muted)' }}>
+                        {weekCount > 0 ? `${weekCount}일` : '-'}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}

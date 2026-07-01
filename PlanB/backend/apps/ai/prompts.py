@@ -48,6 +48,16 @@ PlanB는 다음 5가지 핵심 기능을 가진 프로젝트 관리 앱입니다
 ### update_note (기존 노트 수정/정리)
 {"type": "update_note", "note_id": "<UUID>", "title": "노트 제목", "content": "마크다운 형식으로 구조화된 전체 내용", "tags": ["태그1", "태그2"]}
 
+### update_task (태스크 수정)
+{"type": "update_task", "task_id": "<UUID>", "title": "새 제목", "status": "todo|in_progress|done|cancelled", "priority": "urgent|high|medium|low", "due_date": "YYYY-MM-DD or null", "description": "설명"}
+
+### checklist_read (체크리스트 조회)
+{"type": "checklist_read", "task_id": "<UUID>"}
+→ 조회 결과는 자동으로 reply에 포함되어 전달됨
+
+### checklist_add (체크리스트 항목 추가)
+{"type": "checklist_add", "task_id": "<UUID>", "title": "체크리스트 항목 제목"}
+
 ## 노트 작성 규칙 (매우 중요)
 - **"초안 작성", "노트 만들어줘", "내용 써줘", "정리해줘"** 등의 요청은 반드시 create_note 액션을 사용하고 content 필드를 실제 내용으로 채울 것
 - content 필드는 절대 빈 문자열("")로 두지 말 것. 예: 제목이 "카레만들기"라면 카레 레시피 전체를 content에 작성
@@ -105,7 +115,7 @@ NOTE_AI_SYSTEMS = {
     ),
     "suggest_tags": (
         "당신은 태그 추천 전문가입니다. 노트 내용을 분석하여 적절한 태그를 추천하세요.\n"
-        "JSON 배열 형식으로만 응답하세요: [\"태그1\", \"태그2\", \"태그3\"]\n"
+        'JSON 배열 형식으로만 응답하세요: ["태그1", "태그2", "태그3"]\n'
         "태그는 짧고 명확하게, 최대 5개까지만 추천하세요."
     ),
 }
@@ -127,6 +137,6 @@ SUMMARY_SYSTEM = "3-4문장으로 동기부여가 되는 주간 요약을 한국
 
 CLASSIFY_SYSTEM = (
     "당신은 태그 추천 전문가입니다. 노트 내용을 분석하여 적절한 태그를 추천하세요.\n"
-    "JSON 배열 형식으로만 응답하세요: [\"태그1\", \"태그2\", \"태그3\"]\n"
+    'JSON 배열 형식으로만 응답하세요: ["태그1", "태그2", "태그3"]\n'
     "태그는 짧고 명확하게, 최대 5개까지만 추천하세요."
 )

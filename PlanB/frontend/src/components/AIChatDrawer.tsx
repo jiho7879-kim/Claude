@@ -11,10 +11,13 @@ const SUGGESTIONS = [
 
 const ACTION_ICONS = {
   create_task: '✅',
+  update_task: '🔄',
   create_note: '📝',
   update_note: '✏️',
   create_time_block: '⏰',
   create_event: '📅',
+  checklist_read: '📋',
+  checklist_add: '☑️',
 }
 
 function ModelBadge({ model }) {
