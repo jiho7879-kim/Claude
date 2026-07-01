@@ -420,8 +420,10 @@ def _build_workspace_context(workspace, user, message=""):
         )
         lines.append(f"[예정 일정] ({len(events)}개)")
         for e in events:
+            start = timezone.localtime(e["start_at"])
+            end = timezone.localtime(e["end_at"])
             lines.append(
-                f"  - ID:{e['id']} {e['title']} | {e['start_at'].strftime('%Y-%m-%d %H:%M')}~{e['end_at'].strftime('%H:%M')}"
+                f"  - ID:{e['id']} {e['title']} | {start.strftime('%Y-%m-%d %H:%M')}~{end.strftime('%H:%M')}"
             )
         lines.append("")
 
@@ -613,8 +615,8 @@ def chat(request, workspace_slug: str):
                 if results:
                     lines = [f"📅 '{action.get('keyword', '전체')}' 검색 결과 ({len(results)}개)"]
                     for r in results:
-                        s = r["start_at"].strftime("%Y-%m-%d %H:%M") if r["start_at"] else "?"
-                        e = r["end_at"].strftime("%H:%M") if r["end_at"] else "?"
+                        s = timezone.localtime(r["start_at"]).strftime("%Y-%m-%d %H:%M") if r["start_at"] else "?"
+                        e = timezone.localtime(r["end_at"]).strftime("%H:%M") if r["end_at"] else "?"
                         desc = (r["description"] or "")[:80]
                         lines.append(f"  • {r['title']} ({s}~{e})")
                         if desc:
