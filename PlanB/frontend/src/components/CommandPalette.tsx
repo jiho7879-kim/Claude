@@ -71,7 +71,10 @@ function CreateFlow({ slug, projects, onClose }) {
   const [projectId, setProjectId] = useState(projects[0]?.id || '')
   const [priority, setPriority] = useState('medium')
   const inputRef = useRef(null)
-  useEffect(() => { setTimeout(() => inputRef.current?.focus(), 50) }, [step])
+  useEffect(() => {
+    const id = setTimeout(() => inputRef.current?.focus(), 50)
+    return () => clearTimeout(id)
+  }, [step])
 
   const handleSubmit = async () => {
     if (!title.trim() || !projectId) return
@@ -175,27 +178,24 @@ export default function CommandPalette() {
   const listRef = useRef(null)
   const [cachedWorkspaces, setCachedWorkspaces] = useState([])
   const [cachedProjects, setCachedProjects] = useState([])
-  const [allTasks, setAllTasks] = useState([])
-  const [fuseTask, setFuseTask] = useState(null)
   const [fuseProject, setFuseProject] = useState(null)
+  const [taskResults, setTaskResults] = useState([])
 
-  // Load data on open
+  // Load projects & workspaces on open (NOT tasks — those are fetched on-demand)
   useEffect(() => {
     if (!open) return
-    setQuery(''); setActiveIdx(0); setMode('search')
-    setTimeout(() => inputRef.current?.focus(), 50)
-    getWorkspaces().then(ws => { setCachedWorkspaces(ws) }).catch(() => {})
+    setQuery(''); setActiveIdx(0); setMode('search'); setTaskResults([])
+    const focusId = setTimeout(() => inputRef.current?.focus(), 50)
+    let cancelled = false
+    getWorkspaces().then(ws => { if (!cancelled) setCachedWorkspaces(ws) }).catch(() => {})
     if (slug) {
       getProjects(slug).then(ps => {
+        if (cancelled) return
         setCachedProjects(ps)
         setFuseProject(new Fuse(ps, { keys: ['name', 'description'], threshold: 0.4 }))
-        Promise.all(ps.map(p => getTasks(slug, p.id, { tree: false }).then(ts => ts.map(t => ({ ...t, projectName: p.name, projectId: p.id }))).catch(() => []))).then(results => {
-          const flat = results.flat()
-          setAllTasks(flat)
-          setFuseTask(new Fuse(flat, { keys: ['title', 'projectName'], threshold: 0.35, includeScore: true }))
-        })
       }).catch(() => {})
     }
+    return () => { cancelled = true; clearTimeout(focusId) }
   }, [open, slug])
 
   // Keyboard: global ? shortcut
@@ -209,10 +209,30 @@ export default function CommandPalette() {
     return () => document.removeEventListener('keydown', handler)
   }, [])
 
+  // Search tasks via backend API (debounced, on-demand)
+  useEffect(() => {
+    if (!open || mode !== 'search') return
+    const q = query.trim()
+    if (q.length < 2 || !slug || cachedProjects.length === 0) {
+      setTaskResults([])
+      return
+    }
+    const id = setTimeout(async () => {
+      const results = await Promise.all(
+        cachedProjects.map(p =>
+          getTasks(slug, p.id, { search: q })
+            .then(ts => ts.map(t => ({ ...t, projectName: p.name, projectId: p.id })))
+            .catch(() => [])
+        )
+      )
+      setTaskResults(results.flat().slice(0, 20))
+    }, 250)
+    return () => clearTimeout(id)
+  }, [query, open, mode, slug, cachedProjects])
+
   const buildGroups = useCallback((q) => {
     const q_trimmed = q.trim()
     if (!q_trimmed) {
-      // Default: recent + actions
       const actions = [
         { id: 'act-task', icon: '➕', label: '새 태스크 만들기', shortcut: 'N', action: () => setMode('create'), category: '액션' },
         { id: 'act-dash', icon: '🏠', label: '대시보드', action: () => { navigate(`/workspaces/${slug}/dashboard`); hide() }, category: '이동' },
@@ -231,10 +251,10 @@ export default function CommandPalette() {
 
     const results = []
 
-    // Fuzzy task search
-    if (fuseTask) {
-      const taskHits = fuseTask.search(q_trimmed).slice(0, 6)
-      if (taskHits.length > 0) results.push({ label: `태스크 (${taskHits.length})`, items: taskHits.map(h => ({ id: `t-${h.item.id}`, icon: '📋', label: h.item.title, sub: h.item.projectName, action: () => { navigate(`/workspaces/${slug}/projects/${h.item.projectId}?task=${h.item.id}`); hide() }, category: '태스크' })) })
+    // Task search results (fetched on-demand, limited to 20)
+    if (taskResults.length > 0) {
+      const top = taskResults.slice(0, 6)
+      results.push({ label: `태스크 (${taskResults.length})`, items: top.map(t => ({ id: `t-${t.id}`, icon: '📋', label: t.title, sub: t.projectName, action: () => { navigate(`/workspaces/${slug}/projects/${t.projectId}?task=${t.id}`); hide() }, category: '태스크' })) })
     }
 
     // Fuzzy project search
@@ -249,7 +269,7 @@ export default function CommandPalette() {
     setGroups(results)
     setFlatResults(results.flatMap(g => g.items))
     setActiveIdx(0)
-  }, [fuseTask, fuseProject, slug, navigate, hide, logout])
+  }, [taskResults, fuseProject, slug, navigate, hide, logout])
 
   useEffect(() => { if (open && mode === 'search') buildGroups(query) }, [query, open, mode, buildGroups])
 

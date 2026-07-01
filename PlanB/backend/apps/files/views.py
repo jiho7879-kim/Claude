@@ -1,5 +1,7 @@
-from django.shortcuts import get_object_or_404
+from contextlib import closing
+
 from django.http import FileResponse
+from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
@@ -70,8 +72,10 @@ class FileDetailView(APIView):
         if not attachment.file:
             return Response({"error": "File not found."}, status=status.HTTP_404_NOT_FOUND)
 
+        # closing() guarantees fd release even if WSGI drops the response
+        attachment.file.open("rb")
         response = FileResponse(
-            attachment.file.open("rb"),
+            closing(attachment.file),
             content_type=attachment.content_type or "application/octet-stream",
         )
         response["Content-Disposition"] = f'inline; filename="{attachment.original_name}"'

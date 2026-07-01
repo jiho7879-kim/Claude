@@ -90,7 +90,9 @@ export default function AIChatDrawer({ open, onClose }) {
   const inputRef = useRef(null)
 
   useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 100)
+    if (!open) return
+    const id = setTimeout(() => inputRef.current?.focus(), 100)
+    return () => clearTimeout(id)
   }, [open])
 
   useEffect(() => {

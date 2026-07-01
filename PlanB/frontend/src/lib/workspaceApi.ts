@@ -19,7 +19,11 @@ export const deleteProject = (slug, id) =>
 
 // Tasks
 export const getTasks = (slug, projectId, params = {}) =>
-  api.get(`/api/workspaces/${slug}/projects/${projectId}/tasks/`, { params }).then(r => r.data)
+  api.get(`/api/workspaces/${slug}/projects/${projectId}/tasks/`, { params }).then(r => {
+    const data = r.data
+    // Handle paginated responses (TaskListCreateView uses PageNumberPagination)
+    return Array.isArray(data) ? data : data.results
+  })
 export const createTask = (slug, projectId, data) =>
   api.post(`/api/workspaces/${slug}/projects/${projectId}/tasks/`, data).then(r => r.data)
 export const updateTask = (slug, projectId, taskId, data) =>

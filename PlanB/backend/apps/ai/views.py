@@ -23,15 +23,49 @@ from apps.projects.models import Project
 from apps.tasks.models import Task
 from apps.workspaces.models import Workspace
 
-# Priority: stable models first, preview models excluded for production reliability.
-# gemini-3.5-flash: best balance (speed/cost/agentic) — primary
-# gemini-3.1-flash-lite: ultra-fast cost-efficient stable fallback
-# gemini-2.5-flash: previous-gen stable, last resort before Groq
+# ── AI API Client Lazy Singletons ──────────────────────────────────────────
+# Creating a new HTTP client on every AI call leaks connection pools.
+# These singletons live for the process lifetime.
+
 _GEMINI_MODELS = [
     "gemini-3.5-flash",
     "gemini-3.1-flash-lite",
     "gemini-2.5-flash",
 ]
+
+_genai_client = None
+_deepseek_client = None
+_groq_client = None
+
+
+def _get_genai_client():
+    global _genai_client
+    if _genai_client is None:
+        from google import genai
+        _genai_client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "").strip())
+    return _genai_client
+
+
+def _get_deepseek_client():
+    global _deepseek_client
+    if _deepseek_client is None:
+        from openai import OpenAI
+        _deepseek_client = OpenAI(
+            api_key=os.environ.get("DEEPSEEK_API_KEY", "").strip(),
+            base_url="https://api.deepseek.com",
+        )
+    return _deepseek_client
+
+
+def _get_groq_client():
+    global _groq_client
+    if _groq_client is None:
+        from openai import OpenAI
+        _groq_client = OpenAI(
+            api_key=os.environ.get("GROQ_API_KEY", "").strip(),
+            base_url="https://api.groq.com/openai/v1",
+        )
+    return _groq_client
 
 
 def _try_gemini(
@@ -48,12 +82,9 @@ def _try_gemini(
     )
     if not api_key:
         raise ValueError("GEMINI_API_KEY 없음")
-    try:
-        from google import genai
-        from google.genai import types
-    except ImportError:
-        raise RuntimeError("google-genai 패키지 미설치")
-    client = genai.Client(api_key=api_key)
+    from google.genai import types
+
+    client = _get_genai_client()
     models_to_try = [model] if model else _GEMINI_MODELS
     last_exc = None
     for model_name in models_to_try:
@@ -74,7 +105,6 @@ def _try_gemini(
             logger.warning("[GEMINI] Model %s failed: %s", model_name, err_str[:200])
             last_exc = e
             if model:
-                # When called with a specific model, don't fall through to others
                 raise
             if "429" in err_str or "503" in err_str:
                 logger.warning(
@@ -91,11 +121,7 @@ def _try_deepseek(prompt: str, system: str, require_json: bool = False) -> tuple
     logger.info("[DEEPSEEK] API key present: %s (len=%d)", bool(api_key), len(api_key))
     if not api_key:
         raise ValueError("DEEPSEEK_API_KEY 없음 — Render 환경변수에 등록 필요")
-    try:
-        from openai import OpenAI
-    except ImportError:
-        raise RuntimeError("openai 패키지 미설치 (pip install openai>=1.30.0)")
-    client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+    client = _get_deepseek_client()
     kwargs = {
         "model": "deepseek-v4-flash",
         "messages": [
@@ -129,11 +155,7 @@ def _try_groq(prompt: str, system: str, require_json: bool = False) -> tuple[str
     logger.info("[GROQ] API key present: %s (len=%d)", bool(api_key), len(api_key))
     if not api_key:
         raise ValueError("GROQ_API_KEY 없음 — Render 환경변수에 등록 필요")
-    try:
-        from openai import OpenAI
-    except ImportError:
-        raise RuntimeError("openai 패키지 미설치 (pip install openai>=1.30.0)")
-    client = OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1")
+    client = _get_groq_client()
     models = [
         "llama-4-scout-17b-16e-instruct",
         "llama-4-maverick-17b-128e-instruct",

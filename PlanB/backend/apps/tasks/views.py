@@ -1,5 +1,6 @@
 from django.shortcuts import get_object_or_404
 from rest_framework import status
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -95,11 +96,17 @@ class SprintStatsView(APIView):
 # ── Task ─────────────────────────────────────────────────────────────────────
 
 
+class TaskPagination(PageNumberPagination):
+    page_size = 100
+    page_size_query_param = "page_size"
+    max_page_size = 500
+
+
 class TaskListCreateView(APIView):
     def _project(self, slug, pid, user):
         return get_object_or_404(Project, id=pid, workspace__slug=slug, members__user=user)
 
-    def get(self, request, workspace_slug, project_id):
+    def _task_qs(self, request, workspace_slug, project_id):
         project = self._project(workspace_slug, project_id, request.user)
         qs = project.tasks.select_related("assignee", "created_by", "sprint").prefetch_related(
             "attachments"
@@ -115,9 +122,18 @@ class TaskListCreateView(APIView):
             qs = qs.filter(sprint__id=q["sprint"])
         if q.get("search"):
             qs = qs.filter(title__icontains=q["search"])
+        return qs
+
+    def get(self, request, workspace_slug, project_id):
+        qs = self._task_qs(request, workspace_slug, project_id)
+        q = request.query_params
         if q.get("tree", "false").lower() == "true":
             roots = qs.filter(parent__isnull=True).prefetch_related("children__children")
             return Response(TaskTreeSerializer(roots, many=True).data)
+        paginator = TaskPagination()
+        page = paginator.paginate_queryset(qs, request)
+        if page is not None:
+            return paginator.get_paginated_response(TaskSerializer(page, many=True).data)
         return Response(TaskSerializer(qs, many=True).data)
 
     def post(self, request, workspace_slug, project_id):
